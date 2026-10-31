@@ -51,6 +51,7 @@ test('the strongest path wins and cycles terminate safely', () => {
   close(trust.get('c'), 0.72);
   close(trust.get('d'), 0.9);
   assert.equal(trust.get('a'), 1);
+  assert.ok([...trust.values()].every((value) => value > 0 && value <= 1));
 
   const clusters = computeTrustClusters(world.projects);
   assert.equal(clusters.size, 4);
@@ -137,6 +138,38 @@ test('independent denouncers are separate sources and can flag', () => {
       .filter((reason) => reason.type === 'evidence_backed_denouncement')
       .every((reason) => reason.references.length > 0),
   );
+});
+
+test('the same evidence from two independent projects counts once', () => {
+  const world = createWorld({
+    projects: [
+      { id: 'a', trustConfig: { b: 0.9, c: 0.9 } },
+      { id: 'b' },
+      { id: 'c' },
+    ],
+  });
+  world.append('b', {
+    type: 'denounce',
+    subjectContributorId: 'x',
+    evidence: evidence('example://shared-artifact'),
+  });
+  world.append('c', {
+    type: 'denounce',
+    subjectContributorId: 'x',
+    evidence: evidence('example://shared-artifact'),
+  });
+
+  const assessment = world.assess('a', 'x');
+  assert.equal(assessment.summary.evidenceBackedDenounceSources, 1);
+  assert.equal(assessment.summary.duplicateEvidenceSources, 1);
+  assert.equal(assessment.outcome, 'caution');
+  close(assessment.summary.denounceScore, 0.9);
+  const duplicate = assessment.reasons.find(
+    (reasonItem) => reasonItem.type === 'duplicate_evidence_denouncement',
+  );
+  assert.ok(duplicate);
+  assert.match(duplicate.message, /not a second independent source/i);
+  assert.equal(duplicate.references.length, 2);
 });
 
 test('one trusted issuer alone cannot push past caution', () => {

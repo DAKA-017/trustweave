@@ -18,6 +18,10 @@ const SIGN_PROJECT = "p08";
 const MARKER_KEY = "trustweave:verify:last-record";
 const RELOAD_KEY = "trustweave:verify:reloaded";
 const VERIFY_PROJECT = "p06";
+const TRUST_PROJECT = "p10";
+const TRUST_PEER = "p08";
+const REVOKED_PROJECT = "p13";
+const EXPIRED_PROJECT = "p12";
 const CAMPAIGN_SEED = 7;
 const CAMPAIGN_SIZE = 10;
 const BASE_SEED = 42;
@@ -25,6 +29,23 @@ const BASE_CAMPAIGN_SIZE = 12;
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
+}
+
+function isTransient(error) {
+  return (
+    error?.name === "ApiError" &&
+    (error.code === "NETWORK_ERROR" || (error.status ?? 0) >= 500)
+  );
+}
+
+async function runWithTransientRetry(run) {
+  try {
+    return { result: await run(), attempts: 1 };
+  } catch (error) {
+    if (!isTransient(error)) throw error;
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    return { result: await run(), attempts: 2 };
+  }
 }
 
 function readStorage(storage, key) {
@@ -105,6 +126,61 @@ async function checkGraph() {
   };
 }
 
+async function simulatorFingerprint() {
+  const [health, campaigns, records] = await Promise.all([
+    api.getHealth(),
+    api.getCampaigns(),
+    api.getRecords("p01", "none"),
+  ]);
+  return {
+    counts: health.counts,
+    simulatedAt: health.simulatedAt,
+    members: campaigns.campaigns?.[0]?.memberContributorIds ?? [],
+    signals: (campaigns.campaigns?.[0]?.signalsFired ?? []).map(
+      (signal) => signal.type,
+    ),
+    hashes: (records.log?.entries ?? []).map((entry) => entry.hash),
+  };
+}
+
+async function checkTrust() {
+  const [view, peerView] = await Promise.all([
+    api.getProjectView(TRUST_PROJECT),
+    api.getProjectView(TRUST_PEER),
+  ]);
+  const entries = view.effectiveTrust ?? [];
+  assert(entries.length >= 5, `Expected several reachable projects, received ${entries.length}.`);
+  assert(
+    entries.every((entry) => entry.weight > 0 && entry.weight <= 1),
+    "An effective trust weight was outside (0, 1].",
+  );
+  assert(
+    entries.every(
+      (entry) =>
+        entry.directWeight == null || entry.weight + 1e-9 >= entry.directWeight,
+    ),
+    "The strongest path returned less than the direct edge weight.",
+  );
+
+  const toPeer = entries.find((entry) => entry.projectId === TRUST_PEER);
+  const back = (peerView.effectiveTrust ?? []).find(
+    (entry) => entry.projectId === TRUST_PROJECT,
+  );
+  assert(toPeer && back, "The mutual p10/p08 trust links were not both returned.");
+  assert(
+    Math.abs(toPeer.weight - back.weight) < 1e-9,
+    `The mutual links disagree: ${toPeer.weight} versus ${back.weight}.`,
+  );
+  assert(
+    toPeer.weight < 1 && back.weight < 1,
+    "A mutual trust cycle inflated one side to full trust.",
+  );
+
+  return {
+    detail: `${TRUST_PROJECT} ↔ ${TRUST_PEER} are mutual ${toPeer.weight} links. Both projects report ${toPeer.weight} — the cycle is not multiplied or inflated to 1.0 — and all ${entries.length} reachable weights stay within (0, 1] and above their direct edge.`,
+  };
+}
+
 async function checkSimulator() {
   let detail;
   try {
@@ -117,14 +193,21 @@ async function checkSimulator() {
       health.seed === CAMPAIGN_SEED,
       `The rebuilt simulation reports seed ${health.seed}, not ${CAMPAIGN_SEED}.`,
     );
-    const campaigns = await api.getCampaigns();
-    const detected = campaigns.campaigns?.[0];
-    const members = detected?.memberContributorIds?.length ?? 0;
+    const first = await simulatorFingerprint();
+    const members = first.members.length;
     assert(
       members === CAMPAIGN_SIZE,
       `A rebuild with ${CAMPAIGN_SIZE} campaign members made the detector return ${members}.`,
     );
-    detail = `Rebuilt seed ${BASE_SEED} → ${CAMPAIGN_SEED} with campaignSize ${CAMPAIGN_SIZE}: ${changed.simulation.counts.pullRequests} PRs regenerated and the detector returned ${members} members.`;
+
+    await api.simulate({ seed: CAMPAIGN_SEED, campaignSize: CAMPAIGN_SIZE });
+    const second = await simulatorFingerprint();
+    assert(
+      JSON.stringify(second) === JSON.stringify(first),
+      "Two rebuilds of the same seed produced different counts, members, signals or record hashes.",
+    );
+
+    detail = `Rebuilt seed ${BASE_SEED} → ${CAMPAIGN_SEED}: ${changed.simulation.counts.pullRequests} PRs regenerated and the detector returned ${members} members. A second independent rebuild produced identical counts, ${second.members.length} member ids, ${second.signals.length} signal types and ${second.hashes.length} byte-identical p01 record hashes.`;
   } finally {
     await api.simulate({
       seed: BASE_SEED,
@@ -159,6 +242,52 @@ async function checkCampaign() {
   const types = campaign.signalsFired.map((signal) => signal.type).join(", ");
   return {
     detail: `${campaign.id}: ${campaign.confidence.label} confidence, ${campaign.memberContributorIds.length} members across ${campaign.affectedProjectIds.length} projects, ${campaign.signalsFired.length} signal types (${types}).`,
+  };
+}
+
+async function checkProvenance() {
+  const data = await api.getCampaigns();
+  const campaign = data.campaigns?.[0];
+  assert(campaign, "The detector returned no campaign.");
+  const provenance = campaign.provenance;
+  assert(provenance, "The campaign payload has no provenance block.");
+  assert(
+    provenance.detector === "behavioral-signals-v1",
+    `Unexpected detector id ${provenance.detector}.`,
+  );
+  assert(
+    provenance.inputs?.pullRequests > 300,
+    "The provenance block did not report the input PR count.",
+  );
+  assert(
+    provenance.evidence?.total === campaign.evidence?.length,
+    "The declared evidence total does not match the campaign evidence list.",
+  );
+  assert(
+    provenance.evidence?.byKind?.pull_request > 0 &&
+      provenance.evidence?.byKind?.record > 0,
+    "The campaign evidence is not broken down into PR and record references.",
+  );
+  assert(
+    campaign.signalsFired?.every(
+      (signal) => signal.memberCount >= 1 && signal.evidence?.length > 0,
+    ),
+    "A signal has no member count or no concrete evidence reference.",
+  );
+  assert(
+    campaign.members?.every((member) => member.signalTypes?.length > 0),
+    "At least one member does not list the signals it triggered.",
+  );
+  assert(
+    provenance.membersWithSignals === campaign.members.length,
+    "The provenance member count does not match the member list.",
+  );
+  return {
+    detail: `${campaign.id}: ${provenance.evidence.total} evidence refs (${Object.entries(
+      provenance.evidence.byKind,
+    )
+      .map(([kind, count]) => `${count} ${kind}`)
+      .join(", ")}), ${provenance.signalTypes.count} signal types with per-signal member counts, ${provenance.membersWithSignals}/${campaign.members.length} members listing their own signal types, and ${provenance.inputs.projects} projects · ${provenance.inputs.pullRequests} PRs · ${provenance.inputs.activeRecords} active records recorded as detector inputs.`,
   };
 }
 
@@ -212,6 +341,46 @@ async function checkRecords() {
   );
   return {
     detail: `p07 log: ${types.vouch} vouch + ${types.denounce} denounce; ${verified}/${entries.length} entries pass the Ed25519 signature, SHA-256 hash and previous-hash chain checks.`,
+  };
+}
+
+async function checkRevocation() {
+  const [revoked, expired] = await Promise.all([
+    api.getRecords(REVOKED_PROJECT, "none"),
+    api.getRecords(EXPIRED_PROJECT, "none"),
+  ]);
+  const revokedEntry = (revoked.log?.entries ?? []).find(
+    (entry) => entry.verification?.revoked,
+  );
+  assert(revokedEntry, `No revoked entry was found in ${REVOKED_PROJECT}.`);
+  assert(
+    revokedEntry.verification.integrity === "valid",
+    "The revoked entry no longer passes signature and hash verification.",
+  );
+  assert(
+    revokedEntry.verification.active === false,
+    "The revoked entry is still counted as active.",
+  );
+  assert(
+    revokedEntry.verification.revokedBy,
+    "The revoked entry does not name the revoking record.",
+  );
+
+  const expiredEntry = (expired.log?.entries ?? []).find(
+    (entry) => entry.verification?.expired,
+  );
+  assert(expiredEntry, `No expired entry was found in ${EXPIRED_PROJECT}.`);
+  assert(
+    expiredEntry.verification.integrity === "valid",
+    "The expired entry no longer passes signature and hash verification.",
+  );
+  assert(
+    expiredEntry.verification.active === false,
+    "The expired entry is still counted as active.",
+  );
+
+  return {
+    detail: `${revokedEntry.record.id} stays signature/hash/chain valid but inactive after revoke ${revokedEntry.verification.revokedBy}; ${expiredEntry.record.id} is likewise valid but inactive after expiry. Both remain in the log and are ignored by assessments with an explicit reason.`,
   };
 }
 
@@ -269,10 +438,13 @@ const CHECKS = [
   { id: "persist", title: "Changes persist after refresh", run: checkPersist },
   { id: "load", title: "Network data loads", run: checkLoad },
   { id: "graph", title: "Interactive graph controls", run: checkGraph },
-  { id: "simulator", title: "Simulator updates results", run: checkSimulator },
+  { id: "trust", title: "Circular trust stays bounded", run: checkTrust },
+  { id: "simulator", title: "Simulator updates results reproducibly", run: checkSimulator },
   { id: "campaign", title: "Full campaign detection", run: checkCampaign },
+  { id: "provenance", title: "Campaign evidence and provenance", run: checkProvenance },
   { id: "newcomer", title: "Newcomer fairness", run: checkNewcomers },
   { id: "records", title: "Vouch and denouncement verification", run: checkRecords },
+  { id: "revocation", title: "Revocation and expiry", run: checkRevocation },
   { id: "tamper", title: "Tamper detection", run: checkTamper },
   { id: "sign", title: "Record signing", run: checkSign },
 ];
@@ -281,10 +453,16 @@ const LINKS = {
   persist: [{ label: "Open p08 log", href: recordsPath(SIGN_PROJECT) }],
   load: [{ label: "Open Network", href: "/network" }],
   graph: [{ label: "Open p06 project", href: projectPath(VERIFY_PROJECT) }],
+  trust: [{ label: "Open p10 project", href: projectPath(TRUST_PROJECT) }],
   simulator: [{ label: "Open Simulator", href: "/simulator" }],
   campaign: [{ label: "Open Campaigns", href: "/campaigns" }],
+  provenance: [{ label: "Open Campaigns", href: "/campaigns" }],
   newcomer: [{ label: "Open Newcomers", href: "/newcomers" }],
   records: [{ label: "Open p07 log", href: recordsPath("p07") }],
+  revocation: [
+    { label: "Open revoked log", href: recordsPath(REVOKED_PROJECT) },
+    { label: "Open expired log", href: recordsPath(EXPIRED_PROJECT) },
+  ],
   tamper: [
     {
       label: "Open tampered copy",
@@ -357,10 +535,16 @@ export function VerifyView() {
     for (const check of CHECKS) {
       update(check.id, { status: "running", detail: "" });
       try {
-        const result = await check.run();
+        const { result, attempts } = await runWithTransientRetry(check.run);
         const status = result.status ?? "pass";
         results.push({ id: check.id, status });
-        update(check.id, { status, detail: result.detail });
+        update(check.id, {
+          status,
+          detail:
+            attempts > 1
+              ? `${result.detail} Retried once after a transient API error.`
+              : result.detail,
+        });
       } catch (error) {
         results.push({ id: check.id, status: "fail" });
         update(check.id, {
@@ -449,9 +633,14 @@ export function VerifyView() {
             copy.
           </li>
           <li>
-            • The detector check rebuilds seed 7 with 10 campaign members, then
-            restores seed 42 with 12. If detection were hard-coded, the member
-            count could not follow the rebuild.
+            • The trust check walks the mutual p10 ↔ p08 link, the provenance
+            check reads every campaign evidence reference, and the revocation
+            check reads the built-in revoked and expired logs.
+          </li>
+          <li>
+            • The detector check rebuilds seed 7 twice with 10 campaign members
+            and compares counts, member ids, signals and record hashes, then
+            restores seed 42 with 12.
           </li>
           <li>
             • The signing check appends one vouch to project p08 and reads it

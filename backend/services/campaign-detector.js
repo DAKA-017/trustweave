@@ -114,6 +114,13 @@ const uniqueRefs = (refs) => {
   });
 };
 
+function evidenceBreakdown(refs) {
+  return refs.reduce((totals, ref) => {
+    totals[ref.kind] = (totals[ref.kind] ?? 0) + 1;
+    return totals;
+  }, {});
+}
+
 function signal(type, weight, description, evidence) {
   return { type, weight, description, evidence: uniqueRefs(evidence) };
 }
@@ -528,6 +535,7 @@ export function detectCampaigns({
           type,
           weight: matching[0].weight,
           description,
+          memberCount: matching.length,
           evidence: uniqueRefs(matching.flatMap((item) => item.evidence)).slice(0, 24),
         };
       }),
@@ -540,6 +548,30 @@ export function detectCampaigns({
           `${members.length} members across ${affectedProjectIds.length} projects`,
           `Activity window: ${windowStart} to ${windowEnd}`,
         ],
+      },
+      provenance: {
+        detector: 'behavioral-signals-v1',
+        method:
+          'Threshold rules over simulated PR metadata and signed records. No text-origin or AI-authorship classifier is used.',
+        generatedAt: now.toISOString(),
+        inputs: {
+          projects: projects.size,
+          contributors: contributors.size,
+          pullRequests: pullRequests.length,
+          activeRecords: snapshot.activeRecords.length,
+        },
+        thresholds: { ...opts },
+        evidence: {
+          total: evidence.length,
+          byKind: evidenceBreakdown(evidence),
+        },
+        signalTypes: {
+          count: distinctTypes.length,
+          types: distinctTypes,
+        },
+        membersWithSignals: members.filter(
+          (member) => (signalsByContributor.get(member)?.size ?? 0) > 0,
+        ).length,
       },
       timeline: memberPrs.slice(0, 400).map((pr) => ({
         prId: pr.id,

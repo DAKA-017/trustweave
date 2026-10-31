@@ -148,6 +148,13 @@ function recordReference(record) {
   };
 }
 
+function evidenceSetKey(record) {
+  return (record.evidence ?? [])
+    .map((item) => `${item.kind}:${item.ref}`)
+    .sort()
+    .join('|');
+}
+
 function reason(type, weight, message, references) {
   return { type, weight, message, references };
 }
@@ -270,11 +277,29 @@ export function evaluateContributor({
 
   let denounceScore = 0;
   let evidenceBackedDenounceSources = 0;
-  for (const group of grouped.values()) {
+  let duplicateEvidenceSources = 0;
+  const countedEvidence = new Map();
+  const orderedGroups = [...grouped.entries()].sort(([a], [b]) =>
+    a.localeCompare(b),
+  );
+  for (const [, group] of orderedGroups) {
     group.sort((a, b) => b.weight - a.weight);
     const [primary, ...correlated] = group;
     const rounded = ROUND(primary.weight);
-    if (rounded > 0) {
+    const evidenceKey = evidenceSetKey(primary.record);
+    const alreadyCounted = countedEvidence.get(evidenceKey);
+    if (rounded > 0 && alreadyCounted) {
+      duplicateEvidenceSources += 1;
+      reasons.push(
+        reason(
+          'duplicate_evidence_denouncement',
+          0,
+          `Denouncement from ${primary.record.issuerProjectId} cites evidence already used by ${alreadyCounted.record.issuerProjectId}; it is corroboration, not a second independent source.`,
+          [recordReference(primary.record), recordReference(alreadyCounted.record)],
+        ),
+      );
+    } else if (rounded > 0) {
+      countedEvidence.set(evidenceKey, primary);
       evidenceBackedDenounceSources += 1;
       denounceScore += primary.weight;
       const factorNote =
@@ -436,6 +461,7 @@ export function evaluateContributor({
 
   const summary = {
     evidenceBackedDenounceSources,
+    duplicateEvidenceSources,
     denounceScore: ROUND(denounceScore),
     vouchSupport: ROUND(vouchSupport),
     signalTypes,

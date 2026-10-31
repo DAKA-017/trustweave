@@ -193,11 +193,26 @@ export function starterTasksFor(state, contributorId, count = 3) {
 }
 
 export function enrichCampaign(state, campaign) {
+  const pullRequestCounts = new Map();
+  for (const event of campaign.timeline ?? []) {
+    pullRequestCounts.set(
+      event.contributorId,
+      (pullRequestCounts.get(event.contributorId) ?? 0) + 1,
+    );
+  }
+
   return {
     ...campaign,
     members: campaign.memberContributorIds.map((id) => {
       const contributor = state.contributors.get(id);
-      return contributor ? contributorSummary(contributor) : { id, handle: id };
+      const profile = contributor ? contributorSummary(contributor) : { id, handle: id };
+      return {
+        ...profile,
+        signalTypes: (state.campaignData.signalsByContributor[id] ?? []).map(
+          (signal) => signal.type,
+        ),
+        pullRequests: pullRequestCounts.get(id) ?? 0,
+      };
     }),
     affectedProjects: campaign.affectedProjectIds.map((id) => ({
       id,

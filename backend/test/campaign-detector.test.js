@@ -70,6 +70,39 @@ test('a spread-out submission pattern does not fire a burst', () => {
   assert.equal(types.includes('burst_timing'), false);
 });
 
+test('a legitimate merged release wave fires only one signal and no campaign', () => {
+  const world = createWorld({
+    projects: [{ id: 'p1' }, { id: 'p2' }, { id: 'p3' }, { id: 'p4' }, { id: 'p5' }],
+    contributors: [
+      { id: 'x', accountCreatedAt: '2025-01-01T00:00:00.000Z' },
+    ],
+  });
+  const samples = [
+    'adds integration coverage for the release uploader path',
+    'documents retry behaviour for the scheduler queue',
+    'fixes a typo in the migration upgrade guide',
+    'refactors the cache invalidation helper and its tests',
+    'improves validation messages for malformed configuration files',
+    'removes an unused dependency from the build pipeline',
+  ];
+  const pullRequests = samples.map((content, index) =>
+    makePr({
+      id: `pr${index + 1}`,
+      projectId: `p${index + 1}`,
+      hoursAgo: 30 - index * 4,
+      content,
+      outcome: 'merged',
+    }),
+  );
+
+  const result = detect(world, pullRequests);
+  const types = (result.signalsByContributor.x ?? []).map((signal) => signal.type);
+  assert.ok(types.includes('burst_timing'));
+  assert.equal(types.includes('near_duplicate_content'), false);
+  assert.equal(types.includes('high_volume_low_merge'), false);
+  assert.equal(result.campaigns.length, 0);
+});
+
 test('near-duplicate content across projects fires near_duplicate_content', () => {
   const world = createWorld({
     projects: [{ id: 'p1' }, { id: 'p2' }, { id: 'p3' }, { id: 'p4' }],
@@ -164,6 +197,27 @@ test('the simulated campaign is detected with multiple independent signal types'
   const spanHours =
     (Date.parse(campaign.window.end) - Date.parse(campaign.window.start)) / HOUR;
   assert.ok(spanHours <= 24);
+
+  const { provenance } = campaign;
+  assert.equal(provenance.detector, 'behavioral-signals-v1');
+  assert.equal(provenance.inputs.projects, 30);
+  assert.equal(provenance.inputs.pullRequests, state.pullRequests.length);
+  assert.equal(provenance.inputs.activeRecords, state.snapshot.activeRecords.length);
+  assert.equal(provenance.evidence.total, campaign.evidence.length);
+  assert.ok(provenance.evidence.byKind.pull_request > 0);
+  assert.ok(provenance.evidence.byKind.record > 0);
+  assert.equal(provenance.signalTypes.count, campaign.signalsFired.length);
+  assert.equal(
+    provenance.membersWithSignals,
+    campaign.memberContributorIds.length,
+  );
+  assert.equal(provenance.thresholds.similarityThreshold, 0.82);
+  assert.ok(
+    campaign.signalsFired.every(
+      (signal) => signal.memberCount >= 1 && signal.evidence.length > 0,
+    ),
+  );
+  assert.match(provenance.method, /no text-origin/i);
 });
 
 test('honest newcomers and hard cases are not grouped into the campaign', () => {

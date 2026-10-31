@@ -47,6 +47,25 @@ test('GET /api/projects/:id/view returns assessments from that project only', as
       (item) => item.assessment.evaluatingProjectId === 'p10',
     ),
   );
+  assert.ok(
+    response.body.effectiveTrust.every(
+      (entry) => entry.weight > 0 && entry.weight <= 1,
+    ),
+  );
+  assert.ok(
+    response.body.effectiveTrust.every(
+      (entry) =>
+        entry.directWeight == null || entry.weight + 1e-9 >= entry.directWeight,
+    ),
+  );
+
+  const toP08 = response.body.effectiveTrust.find((entry) => entry.projectId === 'p08');
+  assert.ok(toP08);
+  assert.ok(toP08.weight <= 1);
+  const reverse = await request(app).get('/api/projects/p08/view').expect(200);
+  const toP10 = reverse.body.effectiveTrust.find((entry) => entry.projectId === 'p10');
+  assert.ok(toP10);
+  assert.equal(toP08.weight, toP10.weight);
 });
 
 test('the same contributor gets different outcomes as different projects', async () => {
@@ -99,9 +118,21 @@ test('GET /api/campaigns returns the coordinated campaign with evidence', async 
   assert.ok(campaign.affectedProjects.length >= 20);
   assert.ok(campaign.signalsFired.length >= 2);
   assert.ok(campaign.signalsFired.every((signal) => signal.evidence.length > 0));
+  assert.ok(campaign.signalsFired.every((signal) => signal.memberCount >= 1));
   assert.ok(campaign.timeline.length > 0);
   assert.equal(campaign.confidence.label, 'high');
   assert.ok(response.body.detector.requirement.includes('two independent signal types'));
+
+  assert.equal(campaign.provenance.detector, 'behavioral-signals-v1');
+  assert.equal(campaign.provenance.inputs.projects, 30);
+  assert.equal(campaign.provenance.evidence.total, campaign.evidence.length);
+  assert.ok(campaign.provenance.evidence.byKind.pull_request > 0);
+  assert.ok(campaign.provenance.evidence.byKind.record > 0);
+  assert.equal(campaign.provenance.signalTypes.count, campaign.signalsFired.length);
+  assert.equal(campaign.provenance.membersWithSignals, campaign.members.length);
+  assert.ok(campaign.members.every((member) => member.signalTypes.length > 0));
+  assert.ok(campaign.members.some((member) => member.pullRequests > 0));
+  assert.match(campaign.provenance.method, /no text-origin/i);
 });
 
 test('GET /api/records verifies logs and shows rejection under tampering', async () => {
@@ -186,6 +217,31 @@ test('POST /api/records signs a new record and a later revoke reverses it', asyn
   assert.equal(target.verification.active, false);
 });
 
+test('revoked and expired records remain verifiable but inactive', async () => {
+  const revoked = await request(app)
+    .get('/api/records')
+    .query({ projectId: 'p13' })
+    .expect(200);
+  const revokedEntry = revoked.body.log.entries.find(
+    (entry) => entry.verification.revoked,
+  );
+  assert.ok(revokedEntry);
+  assert.equal(revokedEntry.verification.integrity, 'valid');
+  assert.equal(revokedEntry.verification.active, false);
+  assert.ok(revokedEntry.verification.revokedBy);
+
+  const expired = await request(app)
+    .get('/api/records')
+    .query({ projectId: 'p12' })
+    .expect(200);
+  const expiredEntry = expired.body.log.entries.find(
+    (entry) => entry.verification.expired,
+  );
+  assert.ok(expiredEntry);
+  assert.equal(expiredEntry.verification.integrity, 'valid');
+  assert.equal(expiredEntry.verification.active, false);
+});
+
 test('API errors use the documented shape', async () => {
   const missingProject = await request(app)
     .get('/api/projects/nope/view')
@@ -261,4 +317,45 @@ test('GET /api/metrics reports measurements for one seed and across seeds', asyn
   assert.equal(multi.body.multiSeed.aggregate.newcomerFalseFlagRateMax, 0);
   assert.equal(multi.body.multiSeed.aggregate.explanationCompletenessMin, 1);
   assert.ok(multi.body.multiSeed.variance.campaignPrecision.range === 0);
+});
+
+test('POST /api/simulate returns identical results for the same seed', async () => {
+  const fingerprint = async () => {
+    const [health, campaigns, records] = await Promise.all([
+      request(app).get('/api/health').expect(200),
+      request(app).get('/api/campaigns').expect(200),
+      request(app).get('/api/records').query({ projectId: 'p01' }).expect(200),
+    ]);
+    return {
+      counts: health.body.counts,
+      simulatedAt: health.body.simulatedAt,
+      members: campaigns.body.campaigns.map((campaign) => campaign.memberContributorIds),
+      signals: campaigns.body.campaigns.map((campaign) =>
+        campaign.signalsFired.map((signal) => signal.type),
+      ),
+      hashes: records.body.log.entries.map((entry) => entry.hash),
+    };
+  };
+
+  try {
+    await request(app)
+      .post('/api/simulate')
+      .send({ seed: 7, size: 20, campaignSize: 10 })
+      .expect(200);
+    const first = await fingerprint();
+    assert.equal(first.members[0].length, 10);
+    assert.ok(first.hashes.length > 0);
+
+    await request(app)
+      .post('/api/simulate')
+      .send({ seed: 7, size: 20, campaignSize: 10 })
+      .expect(200);
+    const second = await fingerprint();
+    assert.deepEqual(second, first);
+  } finally {
+    await request(app)
+      .post('/api/simulate')
+      .send({ seed: 42, size: 30, campaignSize: 12 })
+      .expect(200);
+  }
 });

@@ -123,6 +123,13 @@ test("shows the coordinated campaign with multiple independent signals", async (
   ).toBeVisible();
   await expect(page.getByText("Members (12)")).toBeVisible();
   await expect(page.getByText("Affected projects (24)")).toBeVisible();
+  await expect(page.getByTestId("campaign-provenance")).toBeVisible();
+  await expect(page.getByTestId("campaign-evidence-total")).toContainText(
+    "refs",
+  );
+  await expect(
+    page.getByTestId("campaign-member-signals").first(),
+  ).toBeVisible();
 
   for (const signal of [
     "Near Duplicate Content",
@@ -410,7 +417,7 @@ test("runs every live verification check on the page", async ({ page }) => {
     page.getByRole("heading", { level: 1, name: "Live verification" }),
   ).toBeVisible();
 
-  await expect(page.getByTestId("verify-score")).toHaveText("9 / 9 passed", {
+  await expect(page.getByTestId("verify-score")).toHaveText("12 / 12 passed", {
     timeout: 60000,
   });
 
@@ -418,10 +425,13 @@ test("runs every live verification check on the page", async ({ page }) => {
     "persist",
     "load",
     "graph",
+    "trust",
     "simulator",
     "campaign",
+    "provenance",
     "newcomer",
     "records",
+    "revocation",
     "tamper",
     "sign",
   ]) {
@@ -434,4 +444,16 @@ test("runs every live verification check on the page", async ({ page }) => {
   await expect(
     page.getByTestId("verify-detail-persist"),
   ).toContainText("after");
+  await expect(
+    page.getByTestId("verify-detail-trust"),
+  ).toContainText("mutual");
+  await expect(
+    page.getByTestId("verify-detail-simulator"),
+  ).toContainText("identical");
+  await expect(
+    page.getByTestId("verify-detail-provenance"),
+  ).toContainText("evidence refs");
+  await expect(
+    page.getByTestId("verify-detail-revocation"),
+  ).toContainText("inactive");
 });

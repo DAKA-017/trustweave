@@ -90,6 +90,70 @@ export function CampaignView({ version }) {
                   <Stat label="PR events" value={timeline.length} />
                 </div>
 
+                {campaign.provenance && (
+                  <section
+                    className="mt-4 min-w-0 rounded-md border border-line bg-raised/40 px-3 py-3"
+                    data-testid="campaign-provenance"
+                  >
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
+                        Evidence and provenance
+                      </h3>
+                      <span className="font-mono text-[10px] text-muted">
+                        {campaign.provenance.detector}
+                      </span>
+                    </div>
+                    <div className="mt-2 grid gap-3 text-xs leading-relaxed text-muted sm:grid-cols-2 lg:grid-cols-4">
+                      <div className="min-w-0">
+                        <p className="text-ink">Inputs</p>
+                        <p className="break-words">
+                          {campaign.provenance.inputs.projects} projects ·{" "}
+                          {campaign.provenance.inputs.contributors} contributors ·{" "}
+                          {campaign.provenance.inputs.pullRequests} PRs ·{" "}
+                          {campaign.provenance.inputs.activeRecords} active records
+                        </p>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-ink">Evidence</p>
+                        <p className="break-words" data-testid="campaign-evidence-total">
+                          {campaign.provenance.evidence.total} refs (
+                          {Object.entries(campaign.provenance.evidence.byKind)
+                            .map(([kind, count]) => `${count} ${kind}`)
+                            .join(", ")}
+                          )
+                        </p>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-ink">Signals</p>
+                        <p className="break-words">
+                          {campaign.provenance.signalTypes.count} independent types ·{" "}
+                          {campaign.provenance.membersWithSignals} of{" "}
+                          {campaign.members.length} members carry a signal
+                        </p>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-ink">Reproducible</p>
+                        <p className="break-words">
+                          seed {data?.simulation?.seed ?? "?"} · generated{" "}
+                          {formatDate(campaign.provenance.generatedAt)}
+                        </p>
+                      </div>
+                    </div>
+                    <p className="mt-2 break-words text-[11px] leading-relaxed text-muted">
+                      {campaign.provenance.method} Thresholds: duplicate ≥{" "}
+                      {campaign.provenance.thresholds.similarityThreshold} across ≥{" "}
+                      {campaign.provenance.thresholds.minDuplicateProjects} projects;
+                      burst ≥ {campaign.provenance.thresholds.burstMinPrs} PRs across ≥{" "}
+                      {campaign.provenance.thresholds.burstMinProjects} projects in{" "}
+                      {campaign.provenance.thresholds.burstWindowHours}h; new accounts ≤{" "}
+                      {campaign.provenance.thresholds.syncNewAccountDays} days old and in
+                      sync within {campaign.provenance.thresholds.syncWindowHours}h; low
+                      merge below{" "}
+                      {Math.round(campaign.provenance.thresholds.lowMergeRate * 100)}%.
+                    </p>
+                  </section>
+                )}
+
                 <div className="mt-5 grid min-w-0 gap-6 lg:grid-cols-2">
                   <section className="min-w-0">
                     <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
@@ -106,6 +170,9 @@ export function CampaignView({ version }) {
                               {signalLabel(signal.type)}
                             </span>
                             <span className="font-mono text-[10px] text-muted">
+                              {signal.memberCount
+                                ? `${signal.memberCount} member(s) · `
+                                : ""}
                               strength {Number(signal.weight).toFixed(2)}
                             </span>
                           </div>
@@ -133,16 +200,26 @@ export function CampaignView({ version }) {
                     <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
                       Members ({campaign.members.length})
                     </h3>
-                    <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto scroll-pane pr-1">
+                    <ul className="mt-2 max-h-64 space-y-1 overflow-y-auto scroll-pane pr-1">
                       {campaign.members.map((member) => (
-                        <li
-                          key={member.id}
-                          className="flex flex-wrap items-baseline justify-between gap-2 py-1"
-                        >
-                          <span className="text-xs text-ink">{member.handle}</span>
-                          <span className="font-mono text-[10px] text-muted">
-                            {member.id}
-                          </span>
+                        <li key={member.id} className="py-1">
+                          <div className="flex flex-wrap items-baseline justify-between gap-2">
+                            <span className="text-xs text-ink">{member.handle}</span>
+                            <span className="font-mono text-[10px] text-muted">
+                              {member.id}
+                              {typeof member.pullRequests === "number"
+                                ? ` · ${member.pullRequests} PRs`
+                                : ""}
+                            </span>
+                          </div>
+                          {member.signalTypes?.length > 0 && (
+                            <p
+                              className="mt-0.5 break-words font-mono text-[10px] text-muted"
+                              data-testid="campaign-member-signals"
+                            >
+                              {member.signalTypes.map(signalLabel).join(" · ")}
+                            </p>
+                          )}
                         </li>
                       ))}
                     </ul>
