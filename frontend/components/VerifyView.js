@@ -480,7 +480,7 @@ export function VerifyView() {
               className="rounded-lg border border-line bg-panel px-4 py-3"
             >
               <div className="flex flex-wrap items-start justify-between gap-2">
-                <div className="flex min-w-0 items-start gap-2.5">
+                <div className="flex min-w-0 flex-1 items-start gap-2.5">
                   <ShieldCheck
                     className="mt-0.5 h-4 w-4 shrink-0 text-muted"
                     aria-hidden="true"
