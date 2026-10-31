@@ -10,10 +10,14 @@ TrustWeave has **no central authority and no global contributor score**. Every a
 
 | Item | Value |
 | --- | --- |
-| Dashboard | `http://localhost:3000/` |
-| Explainer page | `http://localhost:3000/explainer` |
-| API base | `http://localhost:5050/api` |
-| Health check | `http://localhost:5050/api/health` |
+| Live dashboard | https://trustweave-taupe.vercel.app/ |
+| Live explainer page | https://trustweave-taupe.vercel.app/explainer |
+| Live API base | https://trustweave-api-live.onrender.com/api |
+| Source | https://github.com/DAKA-017/trustweave |
+| Local dashboard | `http://localhost:3000/` |
+| Local explainer page | `http://localhost:3000/explainer` |
+| Local API base | `http://localhost:5050/api` |
+| Local health check | `http://localhost:5050/api/health` |
 | Backend | Node.js, Express 4 (ESM), Zod, Node `crypto` |
 | Frontend | Next.js 16 App Router, React 19, Tailwind CSS 4, lucide-react |
 | Storage | In-memory only; restarting the backend resets everything |
@@ -318,81 +322,79 @@ Verified in this build:
 
 ## 15. Deployment (Vercel + Render)
 
-The app is two processes: an Express API and a Next.js frontend. The frontend calls the API from the browser, so the API must allow the exact frontend origin through CORS.
+The app is deployed and publicly reachable:
 
-| Piece | Host | Root directory | Build | Start |
-| --- | --- | --- | --- | --- |
-| Backend | Render Web Service | `backend` | `npm ci --omit=dev` | `npm start` |
-| Frontend | Vercel Next.js project | `frontend` | `next build` (Vercel default) | Vercel-managed |
+| Piece | Live URL | Host | Root directory | Build | Start |
+| --- | --- | --- | --- | --- | --- |
+| Frontend | https://trustweave-taupe.vercel.app/ | Vercel Next.js project | `frontend` | `next build` (Vercel default) | Vercel-managed |
+| API | https://trustweave-api-live.onrender.com/api | Render Web Service (free, oregon) | `backend` | `npm ci --omit=dev` | `npm start` |
+| Health | https://trustweave-api-live.onrender.com/api/health | | | | |
+| Source | https://github.com/DAKA-017/trustweave | GitHub (public) | | | |
 
-No database, Docker, login or credentials are needed. The included `render.yaml` defines the backend service.
+No database, Docker, login or credentials are needed. The included `render.yaml` documents the backend service.
 
-### 15.1 Put the project in one Git repository
+The live deployment was verified: the dashboard loads `/api/projects` through CORS, every view renders, `POST /api/simulate` rebuilds the world (tested with seed 99 and then reset to seed 42), and `OPTIONS` preflight returns `Access-Control-Allow-Origin` for the exact Vercel origin only.
 
-`frontend/` contains a nested `.git` from `create-next-app`. Move it aside before creating the root repository, otherwise Git records `frontend` as an embedded repository and Vercel/Render cannot see its files:
+### 15.1 Repository setup used
+
+`frontend/` shipped with a nested `.git` from `create-next-app`. It was moved aside so the root repository owns all files:
 
 ```bash
 cd /path/to/94aa1ca4
 mv frontend/.git ../trustweave-frontend-git-backup
-git init
+git init -b main
 git add .
-git commit -m "TrustWeave"
-git branch -M main
-git remote add origin https://github.com/<you>/trustweave.git
+git commit -m "TrustWeave: decentralized trust network simulation"
+git remote add origin https://github.com/DAKA-017/trustweave.git
 git push -u origin main
 ```
 
-`mv` keeps the old repository next to the project instead of deleting it. The root `.gitignore` and `backend/.gitignore` keep `node_modules`, `.env`, `.next` and test output out of the commit. Never commit either `.env`.
+`mv` keeps the old repository next to the project instead of deleting it. The root `.gitignore` and `backend/.gitignore` keep `node_modules`, `.env`, `.next` and test output out of the commit. Neither `.env` is committed, and `frontend/.vercelignore` keeps local env files and build artifacts out of future Vercel uploads.
 
 ### 15.2 Backend on Render
 
-Blueprint path:
+The live service was created non-interactively from the same repository:
 
-1. In the Render Dashboard choose **New → Blueprint**, connect the repository, and let Render read `render.yaml`.
-2. Set `FRONTEND_ORIGIN` to a placeholder such as `https://trustweave.vercel.app` for now.
-3. Deploy and copy the service URL, for example `https://trustweave-api.onrender.com`.
-4. Check `https://<backend>/api/health`.
+- Root directory `backend`, runtime Node, plan free, region `oregon`.
+- Build `npm ci --omit=dev`, start `npm start`, health check `/api/health`.
+- Environment: `NODE_ENV=production`, `SIM_SEED=42`, `FRONTEND_ORIGIN=https://trustweave-taupe.vercel.app`.
 
-Manual path: **New → Web Service**, root directory `backend`, build command `npm ci --omit=dev`, start command `npm start`, health check path `/api/health`, environment variables `NODE_ENV=production`, `SIM_SEED=42`, `FRONTEND_ORIGIN=<placeholder>`.
+The equivalent Dashboard path is **New → Blueprint** with `render.yaml`, or **New → Web Service** with the settings above. `render.yaml` marks `FRONTEND_ORIGIN` as `sync: false`, so set it to the exact frontend origin after the frontend exists.
 
-Platform environment variables take precedence over `backend/.env`, which is not deployed. Do not set `PORT`; Render injects it and `server.js` reads it.
+Platform environment variables take precedence over `backend/.env`, which is not deployed. Do not set `PORT`; Render injects it and `server.js` reads it. Changing only `FRONTEND_ORIGIN` requires a redeploy, because CORS is read at startup.
 
 ### 15.3 Frontend on Vercel
 
-1. In Vercel choose **Add New → Project** and import the same repository.
-2. Set **Root Directory** to `frontend`, keep the Next.js preset, and leave build/output defaults.
-3. Add this environment variable for Production (and Preview if you want previews):
-   `NEXT_PUBLIC_API_BASE_URL=https://<backend>/api`
-4. Deploy and copy the production URL.
+The live project is `dilli-police1/trustweave` with root directory `frontend` and production alias `https://trustweave-taupe.vercel.app`. Its Production environment contains:
 
-`NEXT_PUBLIC_API_BASE_URL` is inlined at build time, so set it before the first build and redeploy after changing it. The value must end in `/api` exactly once. A CLI alternative is `cd frontend && npx vercel`; add the variable first with `npx vercel env add NEXT_PUBLIC_API_BASE_URL production`.
+```
+NEXT_PUBLIC_API_BASE_URL=https://trustweave-api-live.onrender.com/api
+```
 
-### 15.4 Point CORS at the deployed frontend
+`NEXT_PUBLIC_API_BASE_URL` is inlined at build time, so changing it requires a new build, not just an env edit. The value must end in `/api` exactly once. To recreate the project from scratch, import the repository, set the root directory to `frontend`, add the variable, and deploy.
 
-Update Render's `FRONTEND_ORIGIN` to the exact Vercel production origin (`https://<frontend>`, no trailing slash) and save. Render redeploys automatically. Then open the deployed site.
+### 15.4 CORS
 
-Only one exact origin is allowed. Vercel preview deployments use different origins; either open the production URL or temporarily set `FRONTEND_ORIGIN` to the preview origin.
+Render's `FRONTEND_ORIGIN` is the exact Vercel production origin (`https://trustweave-taupe.vercel.app`, no trailing slash). Only that origin is allowed; Vercel preview deployments use different origins and are rejected by design. To test a preview, temporarily change `FRONTEND_ORIGIN` and redeploy.
 
-### 15.5 Verify
+### 15.5 Verify a deployment
 
 ```bash
-curl -s https://<backend>/api/health
-curl -i -s -X OPTIONS https://<backend>/api/health \
-  -H "Origin: https://<frontend>" \
+curl -s https://trustweave-api-live.onrender.com/api/health
+curl -i -s -X OPTIONS https://trustweave-api-live.onrender.com/api/health \
+  -H "Origin: https://trustweave-taupe.vercel.app" \
   -H "Access-Control-Request-Method: GET"
 ```
 
-The second response must include `Access-Control-Allow-Origin: https://<frontend>`. Then click through Network, Contributors, Campaigns, Newcomers, Records, Simulator and Explainer.
+The second response includes `Access-Control-Allow-Origin: https://trustweave-taupe.vercel.app`. Then open the dashboard and click through Network, Project view, Contributor, Campaigns, Newcomers, Records, Simulator and the explainer page.
 
 ### 15.6 Deployment limitations
 
-- **In-memory state.** Every restart or redeploy rebuilds the seed-42 world; `POST /api/simulate` also resets it. There is no database.
+- **In-memory state.** Every restart or redeploy rebuilds the seed-42 world; `POST /api/simulate` also resets it. There is no database, so two visitors share and can change the same simulated world.
 - **Free-tier cold starts.** Render's free web service sleeps after inactivity; the first request can take 30–60 seconds. The dashboard shows a retryable connection error.
 - **HTTPS on both sides.** Serving one side over HTTP causes mixed-content or CORS failures.
 - **Single CORS origin.** Production and preview URLs are different origins; only the configured one is accepted.
 - **Still read-only.** The deployed app never contacts a real repository.
-
-The production frontend build and production-mode backend were verified locally; no external deployment or service was used for this submission.
 
 ## 16. Known limitations and out of scope
 
@@ -400,7 +402,7 @@ The production frontend build and production-mode backend were verified locally;
 - **Not real cryptographic identity.** Ed25519 keys are valid cryptography, but they are deterministically derived for reproducibility. There is no key rotation, revocation of keys, hardware key storage or identity proof.
 - **No persistence.** State is in memory; restarting the backend resets everything. There is no database.
 - **No GitHub integration.** The app never reads or posts to a real repository, and no AI or GitHub credentials are used.
-- **No login, payments or persistent database.** These are intentionally out of scope. Deployment configuration is included, but this submission was not deployed.
+- **No login, payments or persistent database.** These are intentionally out of scope. The app is deployed (see §15), but its state is in memory and resets on restart.
 - **Synthetic evaluation.** Precision, recall and newcomer false-flag rates are measured against simulator ground truth that a real deployment would not have. The perfect scores are not a real-world accuracy claim.
 - **Patient, slow sybil attacks are not solved.** An attacker who ages accounts, varies timing and content, and avoids rings can evade these thresholds. Detecting long-horizon collusion would require more history and different analysis.
 - **Thresholds are fixed in this build.** They are configurable in code, but there is no calibration workflow against labeled real data.
@@ -414,6 +416,6 @@ The production frontend build and production-mode backend were verified locally;
 
 **What is simulated:** every project, contributor, PR, account age, content sample, key, trust edge, record, campaign and ground-truth label. The simulation host is a convenience process, not an authority. Sponsor vouches are signed with simulated project keys.
 
-**What was not verified:** behavior against real repositories, real malicious actors, real key management, long-horizon sybil strategies, load at production scale, cross-browser rendering beyond Chromium, and real-world detector precision/recall. No deployment or external service was used.
+**What was not verified:** behavior against real repositories, real malicious actors, real key management, long-horizon sybil strategies, load at production scale, cross-browser rendering beyond Chromium, and real-world detector precision/recall. The public deployment on Render and Vercel was verified for structure, CORS and the write path, but not load-tested and not exercised from Safari or Firefox.
 
 **What to say plainly in a demo:** this is a working, tested simulation of the trust model and its safeguards, with honest synthetic metrics — not a production reputation system.

@@ -1,0 +1,8 @@
+.env
+.env.*
+.next
+.vercel
+.screenshots
+test-results
+playwright-report
+coverage
