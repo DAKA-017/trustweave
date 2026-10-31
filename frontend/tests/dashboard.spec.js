@@ -182,7 +182,13 @@ test("demonstrates signature and hash-chain rejection", async ({ page }) => {
 test("searches, filters and navigates the trust graph", async ({ page }) => {
   const count = page.getByTestId("network-count");
   await expect(count).toContainText("30 of 30 projects");
+  await expect(count).toContainText("24 of 88 links");
   const allEdges = await count.innerText();
+
+  await page.getByTestId("network-show-all").check();
+  await expect(count).toContainText("88 of 88 links");
+  await page.getByTestId("network-show-all").uncheck();
+  await expect(count).toHaveText(allEdges);
 
   await page.getByTestId("network-search").fill("Kelp");
   await expect(page.getByTestId("project-row-p08")).toBeVisible();

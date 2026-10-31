@@ -72,7 +72,7 @@ export function SimulatorView({ version, meta, onSimulated }) {
     <div className="min-w-0">
       <PageHeader
         title="Simulator"
-        description="Rebuild the deterministic in-memory simulation from a seed, then measure the detector against simulator ground truth. Nothing is fetched from or written to a real repository."
+        description="Rebuild a repeatable demo world from a number (the seed), then compare the app's guesses with the simulator's known answers. Nothing is fetched from or written to a real repository."
       >
         {meta && (
           <span className="rounded border border-line bg-panel px-2 py-1 font-mono text-[10px] text-muted">
@@ -85,7 +85,7 @@ export function SimulatorView({ version, meta, onSimulated }) {
       <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
         <Panel
           title="Run configuration"
-          description="Rerunning discards in-memory records and rebuilds every log, PR, and signal from the seed."
+          description="Rebuilding starts a fresh demo world from the seed and discards the current records."
         >
           <form onSubmit={rerun} className="space-y-4">
             <div>
@@ -220,7 +220,7 @@ export function SimulatorView({ version, meta, onSimulated }) {
         <div className="min-w-0 space-y-4">
           <Panel
             title="Metrics for this seed"
-            description="Measured against simulator ground truth. A real deployment would not have these labels."
+            description="These numbers compare the app's guesses with the simulator's known answers. A real deployment would not have answer labels."
           >
             {metrics.loading && !metrics.data ? (
               <LoadingState label="Computing metrics" />

@@ -51,7 +51,7 @@ export function CampaignView({ version }) {
     <div className="min-w-0">
       <PageHeader
         title="Campaigns"
-        description="A campaign is reported only when at least two independent behavioral signal types link at least two accounts. Signals are computed across projects, not inherited from any authority."
+        description="A campaign is reported only when at least two different warning signs connect at least two accounts. The signs are worked out across projects; no central authority declares them."
       />
 
       {campaigns.length === 0 ? (
@@ -93,7 +93,7 @@ export function CampaignView({ version }) {
                 <div className="mt-5 grid min-w-0 gap-6 lg:grid-cols-2">
                   <section className="min-w-0">
                     <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
-                      Signals fired
+                      Signals found
                     </h3>
                     <ul className="mt-2 space-y-3">
                       {campaign.signalsFired.map((signal) => (
@@ -106,7 +106,7 @@ export function CampaignView({ version }) {
                               {signalLabel(signal.type)}
                             </span>
                             <span className="font-mono text-[10px] text-muted">
-                              weight {Number(signal.weight).toFixed(2)}
+                              strength {Number(signal.weight).toFixed(2)}
                             </span>
                           </div>
                           <p className="mt-1 break-words text-xs leading-relaxed text-muted">
@@ -118,7 +118,7 @@ export function CampaignView({ version }) {
                     </ul>
 
                     <h3 className="mt-5 text-xs font-semibold uppercase tracking-[0.12em] text-muted">
-                      Why this confidence label
+                      Why this confidence level
                     </h3>
                     <ul className="mt-2 space-y-1 text-xs leading-relaxed text-muted">
                       {campaign.confidence.reasons.map((reason) => (

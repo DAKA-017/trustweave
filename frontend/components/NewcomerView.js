@@ -123,7 +123,7 @@ export function NewcomerView({ version, onSigned }) {
       ) : (
         <Panel
           title="Neutral newcomers"
-          description="Each row shows the assessment as p10, observed behavior, suggested starter tasks, and a simulated sponsor action."
+          description="Each row shows how p10 sees the person, what they have done so far, starter tasks, and a demo vouch action."
           contentClassName="p-0"
         >
           <ul className="divide-y divide-line">
@@ -180,7 +180,7 @@ export function NewcomerView({ version, onSigned }) {
                   </div>
                   <div className="min-w-0">
                     <h3 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
-                      Sponsor vouch
+                      Vouch for this person
                     </h3>
                     <SponsorForm
                       newcomer={newcomer}

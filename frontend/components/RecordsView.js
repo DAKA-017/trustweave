@@ -81,8 +81,8 @@ function RecordForm({ projects, defaultProjectId, onSigned }) {
 
   return (
     <Panel
-      title="Sign a demo record"
-      description="Append a signed vouch, denouncement, or revocation to a project log. This mutates only the in-memory simulation; rebuild from the Simulator to reset."
+      title="Add a signed note"
+      description="A record is a signed note a project adds to its list: support, a concern, or a correction. This only changes the demo's in-memory data; rebuild from the Simulator to reset."
     >
       <form onSubmit={submit} className="space-y-3">
         <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -91,7 +91,7 @@ function RecordForm({ projects, defaultProjectId, onSigned }) {
               htmlFor="record-type"
               className="block text-[10px] uppercase tracking-wide text-muted"
             >
-              Record type
+              What kind of note
             </label>
             <select
               id="record-type"
@@ -100,9 +100,9 @@ function RecordForm({ projects, defaultProjectId, onSigned }) {
               data-testid="record-type"
               className="mt-1 min-h-9 w-full rounded-md border border-line-strong bg-panel px-2 py-1.5 font-mono text-xs text-ink"
             >
-              <option value="vouch">vouch</option>
-              <option value="denounce">denounce</option>
-              <option value="revoke">revoke</option>
+              <option value="vouch">vouch (support someone)</option>
+              <option value="denounce">denounce (raise a concern)</option>
+              <option value="revoke">revoke (cancel an earlier note)</option>
             </select>
           </div>
 
@@ -111,7 +111,7 @@ function RecordForm({ projects, defaultProjectId, onSigned }) {
               htmlFor="record-issuer"
               className="block text-[10px] uppercase tracking-wide text-muted"
             >
-              Issuer project
+              Signed by project
             </label>
             <select
               id="record-issuer"
@@ -133,7 +133,7 @@ function RecordForm({ projects, defaultProjectId, onSigned }) {
               htmlFor="record-subject"
               className="block text-[10px] uppercase tracking-wide text-muted"
             >
-              Contributor id
+              Person&apos;s id
             </label>
             <input
               id="record-subject"
@@ -150,7 +150,7 @@ function RecordForm({ projects, defaultProjectId, onSigned }) {
               htmlFor="record-reason"
               className="block text-[10px] uppercase tracking-wide text-muted"
             >
-              Reason code
+              Reason
             </label>
             <input
               id="record-reason"
@@ -183,7 +183,7 @@ function RecordForm({ projects, defaultProjectId, onSigned }) {
                 htmlFor="record-subject-record"
                 className="block text-[10px] uppercase tracking-wide text-muted"
               >
-                Record to revoke
+                Note to cancel
               </label>
               <input
                 id="record-subject-record"
@@ -271,7 +271,7 @@ export function RecordsView({ version, onRecordChange }) {
     <div className="min-w-0">
       <PageHeader
         title="Records"
-        description="Each project keeps an append-only hash chain. Every record is signed with its issuer's Ed25519 key and verified again when another project pulls the log."
+        description="Each project keeps a list of signed notes that cannot be quietly edited. Every note is checked again when another project reads the list."
       />
 
       <div className="mb-4">
@@ -371,7 +371,7 @@ export function RecordsView({ version, onRecordChange }) {
           title={`${records.data.project.name} · ${records.data.project.id}`}
           description={
             tamper === "none"
-              ? "Every entry is verified against the previous hash and the issuer signature."
+              ? "Each note is checked against the one before it and the project's signature."
               : "Demonstration only. Stored records were not modified."
           }
           actions={

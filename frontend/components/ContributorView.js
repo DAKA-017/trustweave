@@ -66,7 +66,7 @@ export function ContributorView({
     <div className="min-w-0">
       <PageHeader
         title={contributor.handle}
-        description={`Assessed as ${evaluatingProject.name} (${evaluatingProject.id}). This outcome does not travel with the contributor; each project computes its own.`}
+        description={`This is how ${evaluatingProject.name} (${evaluatingProject.id}) sees this person. Another project can judge them differently.`}
       >
         <OutcomeBadge outcome={assessment.outcome} />
       </PageHeader>
@@ -136,7 +136,7 @@ export function ContributorView({
         )}
         <p className="mt-3 font-mono text-[10px] text-muted">
           {contributor.id} · account created {formatDate(contributor.accountCreatedAt)} ·{" "}
-          {recentPullRequests.length} recent PR(s)
+          {recentPullRequests.length} recent pull request(s)
         </p>
       </div>
 
@@ -144,7 +144,7 @@ export function ContributorView({
         <div className="min-w-0 space-y-4">
           <Panel
             title="Outcome summary"
-            description="Graded outcome with the signal totals used by this project. Weights are not a spam probability."
+            description="The result for this person, with the evidence totals this project used. A score is not a spam probability."
           >
             <div className="flex flex-wrap items-center gap-2">
               <OutcomeBadge outcome={assessment.outcome} />
@@ -194,7 +194,10 @@ export function ContributorView({
             <ReasonList reasons={assessment.reasons} />
           </Panel>
 
-          <Panel title="Contributing records and signature status">
+          <Panel
+            title="Signed records used"
+            description="Each note is checked again: who signed it, whether it was changed, and whether it is still active."
+          >
             {assessment.contributingRecords.length === 0 ? (
               <EmptyState title="No signed records from this project's trusted network">
                 A contributor can still be flagged by behavioral signals, or they
@@ -250,7 +253,10 @@ export function ContributorView({
             </p>
           </Panel>
 
-          <Panel title="Behavioral signals">
+          <Panel
+            title="Behavioral signals"
+            description="Patterns in what the person did, not in how they wrote it."
+          >
             {assessment.signals.length === 0 ? (
               <p className="text-xs leading-relaxed text-muted">
                 No behavioral signals apply to this contributor. Absence of
@@ -265,7 +271,7 @@ export function ContributorView({
                         {signalLabel(signal.type)}
                       </span>
                       <span className="font-mono text-[10px] text-muted">
-                        weight {Number(signal.weight ?? 0).toFixed(2)}
+                        strength {Number(signal.weight ?? 0).toFixed(2)}
                       </span>
                     </div>
                     <p className="mt-1 break-words text-xs leading-relaxed text-muted">

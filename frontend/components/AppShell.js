@@ -52,7 +52,7 @@ function Meta({ meta }) {
         role="status"
         className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted"
       >
-        connecting to simulation host…
+        connecting to the demo…
       </span>
     );
   }
@@ -95,7 +95,7 @@ export function AppShell({ view, onNavigate, meta, children }) {
                 TrustWeave
               </span>
               <span className="block truncate font-mono text-[9px] uppercase tracking-[0.14em] text-muted">
-                decentralized trust sim
+                trust, without one score
               </span>
             </span>
           </Link>
@@ -139,11 +139,12 @@ export function AppShell({ view, onNavigate, meta, children }) {
 
         <div className="hidden border-t border-line px-4 py-4 md:block">
           <p className="text-[11px] leading-relaxed text-muted">
-            One process hosts every simulated project. It is not an authority:
-            each project verifies peer logs and scores from its own trust list.
+            Every project runs inside this one demo. There is no single score:
+            each project decides whom to trust and judges people from what it
+            can verify.
           </p>
           <p className="mt-3 text-[10px] leading-relaxed text-muted/80">
-            Read-only simulation · no real repositories contacted.
+            Demo only · no real repositories are contacted.
           </p>
         </div>
       </aside>

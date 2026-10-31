@@ -42,7 +42,7 @@ export function ProjectView({
     <div className="min-w-0">
       <PageHeader
         title={`Assessing as ${project.name}`}
-        description="This view answers one question only: what does this project conclude from the signed records it chooses to read? Another project may reach a different outcome for the same contributor."
+        description="This page shows one project's point of view. Another project can look at the same person and reach a different result."
       >
         <label
           htmlFor="project-selector"
@@ -66,10 +66,10 @@ export function ProjectView({
 
       <div className="mb-4 rounded-lg border border-line bg-panel px-4 py-3">
         <p className="text-xs leading-relaxed text-muted">
-          Reads records from{" "}
+          This project listens to{" "}
           <span className="font-mono text-ink">{effectiveTrust.length}</span>{" "}
-          project(s) with nonzero effective trust. Unknown contributors are
-          neutral; no history is never treated as negative evidence.
+          other project(s) it trusts. People with no history stay neutral — no
+          history is not evidence against them.
         </p>
       </div>
 
@@ -115,9 +115,9 @@ export function ProjectView({
                         </span>
                       </div>
                       <p className="mt-0.5 font-mono text-[10px] text-muted">
-                        {item.pullRequests.length} PR(s) to this project · latest{" "}
+                        {item.pullRequests.length} pull request(s) here · last{" "}
                         {formatDate(latestPr?.createdAt)} ·{" "}
-                        {validRecords} contributing record(s)
+                        {validRecords} signed record(s) used
                       </p>
                     </div>
                     <OutcomeBadge outcome={assessment.outcome} />
