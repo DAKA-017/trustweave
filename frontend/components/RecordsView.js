@@ -234,23 +234,28 @@ function RecordForm({ projects, defaultProjectId, onSigned }) {
   );
 }
 
-export function RecordsView({ version, onRecordChange }) {
+export function RecordsView({
+  version,
+  projectId: selectedProjectId = "",
+  tamper = "none",
+  onProjectChange,
+  onTamperChange,
+  onRecordChange,
+}) {
   const summaries = useApiResource(
     (signal) => api.getRecordSummaries(signal),
     `record-summaries:${version}`,
     version === 0 ? snapshot.recordSummaries : null,
   );
-  const [projectId, setProjectId] = useState("");
-  const [tamper, setTamper] = useState("none");
 
   const fallbackProjectId =
+    summaries.data?.defaultProjectId ??
     summaries.data?.projects?.find(
       (project) =>
-        (project.counts?.valid ?? 0) + (project.counts?.invalid ?? 0) >= 3,
+        (project.counts?.valid ?? 0) + (project.counts?.invalid ?? 0) > 0,
     )?.id ??
-    summaries.data?.defaultProjectId ??
     "";
-  const effectiveProjectId = projectId || fallbackProjectId;
+  const effectiveProjectId = selectedProjectId || fallbackProjectId;
 
   const records = useApiResource(
     (signal) =>
@@ -258,9 +263,19 @@ export function RecordsView({ version, onRecordChange }) {
         ? api.getRecords(effectiveProjectId, tamper, signal)
         : Promise.resolve(null),
     `records:${effectiveProjectId}:${tamper}:${version}`,
-    version === 0 && effectiveProjectId === "p02"
+    version === 0 && effectiveProjectId === "p07"
       ? snapshot.records[tamper]
       : null,
+  );
+
+  const typeTotals = (summaries.data?.projects ?? []).reduce(
+    (totals, project) => {
+      for (const [type, count] of Object.entries(project.types ?? {})) {
+        totals[type] = (totals[type] ?? 0) + count;
+      }
+      return totals;
+    },
+    {},
   );
 
   const summariesLoading = summaries.loading && !summaries.data;
@@ -272,7 +287,41 @@ export function RecordsView({ version, onRecordChange }) {
       <PageHeader
         title="Records"
         description="Each project keeps a list of signed notes that cannot be quietly edited. Every note is checked again when another project reads the list."
-      />
+      >
+        <span
+          className="rounded border border-teal/40 bg-teal/10 px-2 py-1 font-mono text-[10px] text-teal"
+          data-testid="records-summary"
+        >
+          {typeTotals.vouch ?? 0} vouch · {typeTotals.denounce ?? 0} denounce ·{" "}
+          {typeTotals.revoke ?? 0} revoke
+        </span>
+      </PageHeader>
+
+      <div
+        className="mb-4 grid grid-cols-2 divide-x divide-y divide-line rounded-lg border border-line bg-panel sm:grid-cols-4 sm:divide-y-0"
+        data-testid="record-type-totals"
+      >
+        <Stat
+          label="Vouches"
+          value={typeTotals.vouch ?? 0}
+          hint="signed support notes"
+        />
+        <Stat
+          label="Denouncements"
+          value={typeTotals.denounce ?? 0}
+          hint="signed concern notes"
+        />
+        <Stat
+          label="Revocations"
+          value={typeTotals.revoke ?? 0}
+          hint="notes that correct an earlier one"
+        />
+        <Stat
+          label="Logs checked"
+          value={summaries.data?.projects?.length ?? 0}
+          hint="one per project"
+        />
+      </div>
 
       <div className="mb-4">
         <RecordForm
@@ -280,7 +329,7 @@ export function RecordsView({ version, onRecordChange }) {
           defaultProjectId={effectiveProjectId}
           onSigned={(response) => {
             const issuer = response?.record?.issuerProjectId;
-            if (issuer) setProjectId(issuer);
+            if (issuer) onProjectChange?.(issuer);
             onRecordChange?.();
           }}
         />
@@ -305,14 +354,15 @@ export function RecordsView({ version, onRecordChange }) {
           <select
             id="records-project"
             value={effectiveProjectId}
-            onChange={(event) => setProjectId(event.target.value)}
+            onChange={(event) => onProjectChange?.(event.target.value)}
             className="mt-1 min-h-9 max-w-full rounded-md border border-line-strong bg-panel px-2 py-1.5 font-mono text-xs text-ink"
           >
             {(summaries.data?.projects ?? []).map((project) => (
               <option key={project.id} value={project.id}>
                 {project.id} · {project.name} ·{" "}
                 {(project.counts?.valid ?? 0) + (project.counts?.invalid ?? 0)}{" "}
-                record(s)
+                record(s) · {project.types?.vouch ?? 0} vouch /{" "}
+                {project.types?.denounce ?? 0} denounce
               </option>
             ))}
           </select>
@@ -336,7 +386,7 @@ export function RecordsView({ version, onRecordChange }) {
                 key={mode.id}
                 type="button"
                 aria-pressed={tamper === mode.id}
-                onClick={() => setTamper(mode.id)}
+                onClick={() => onTamperChange?.(mode.id)}
                 className={`min-h-9 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors ${
                   tamper === mode.id
                     ? "border-amber/50 bg-amber/10 text-amber"

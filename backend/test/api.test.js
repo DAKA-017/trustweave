@@ -107,7 +107,12 @@ test('GET /api/campaigns returns the coordinated campaign with evidence', async 
 test('GET /api/records verifies logs and shows rejection under tampering', async () => {
   const summary = await request(app).get('/api/records').expect(200);
   assert.ok(summary.body.projects.length === 30);
-  assert.equal(summary.body.defaultProjectId, 'p01');
+  assert.equal(summary.body.defaultProjectId, 'p07');
+  const defaultProject = summary.body.projects.find(
+    (project) => project.id === summary.body.defaultProjectId,
+  );
+  assert.ok(defaultProject.types.vouch > 0);
+  assert.ok(defaultProject.types.denounce > 0);
 
   const clean = await request(app)
     .get('/api/records')

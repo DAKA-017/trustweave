@@ -28,7 +28,6 @@ export function ContributorView({
   asProject,
   version,
   onOpenContributor,
-  onSelectProject,
 }) {
   const projects = useApiResource(
     (signal) => api.getProjects(signal),
@@ -95,10 +94,9 @@ export function ContributorView({
             <select
               id="assessment-project"
               value={asProject}
-              onChange={(event) => {
-                onSelectProject(event.target.value);
-                onOpenContributor(event.target.value, contributorId);
-              }}
+              onChange={(event) =>
+                onOpenContributor(event.target.value, contributorId)
+              }
               className="mt-1 min-h-9 max-w-full rounded-md border border-line-strong bg-panel px-2 py-1.5 font-mono text-xs text-ink"
             >
               {(projects.data?.projects ?? [evaluatingProject]).map((item) => (

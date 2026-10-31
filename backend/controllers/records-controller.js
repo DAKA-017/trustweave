@@ -17,17 +17,32 @@ export function getRecords(req, res) {
     }
     const projects = [...state.projects.values()].map((project) => {
       const verification = state.snapshot.verificationFor(project.id);
+      const types = { vouch: 0, denounce: 0, revoke: 0 };
+      for (const entry of state.records.getLog(project.id)) {
+        const type = entry.record.type;
+        types[type] = (types[type] ?? 0) + 1;
+      }
       return {
         id: project.id,
         name: project.name,
         valid: verification?.valid ?? true,
         counts: verification?.counts ?? null,
+        types,
       };
     });
+    const defaultProjectId =
+      projects.find(
+        (project) => project.types.vouch > 0 && project.types.denounce > 0,
+      )?.id ??
+      projects.find(
+        (project) => project.types.vouch > 0 || project.types.denounce > 0,
+      )?.id ??
+      projects[0]?.id ??
+      null;
     return res.json({
       simulation: simulationMeta(state),
       projects,
-      defaultProjectId: projects[0]?.id ?? null,
+      defaultProjectId,
       note: 'Pass ?projectId=... to inspect the full log. Pass &tamper=signature or &tamper=chain for the tamper demo.',
     });
   }

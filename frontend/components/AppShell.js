@@ -11,6 +11,7 @@ import {
   Sprout,
   UserSearch,
 } from "lucide-react";
+import { pathForView } from "@/lib/routes";
 
 const NAV_ITEMS = [
   { id: "network", label: "Network", icon: Network },
@@ -78,7 +79,14 @@ function Meta({ meta }) {
   );
 }
 
-export function AppShell({ view, onNavigate, meta, children }) {
+export function AppShell({
+  view,
+  meta,
+  asProject,
+  contributorId,
+  onNavigate,
+  children,
+}) {
   const active = NAV_ITEMS.find((item) => item.id === view);
 
   return (
@@ -112,9 +120,12 @@ export function AppShell({ view, onNavigate, meta, children }) {
             const Icon = item.icon;
             const isActive = view === item.id;
             return (
-              <button
+              <Link
                 key={item.id}
-                type="button"
+                href={pathForView(item.id, {
+                  projectId: asProject,
+                  contributorId,
+                })}
                 onClick={() => onNavigate?.(item.id)}
                 aria-current={isActive ? "page" : undefined}
                 className={`flex min-h-9 shrink-0 items-center gap-2 rounded-md border px-2.5 py-1.5 text-left text-xs font-medium transition-colors ${
@@ -125,7 +136,7 @@ export function AppShell({ view, onNavigate, meta, children }) {
               >
                 <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
                 <span className="whitespace-nowrap">{item.label}</span>
-              </button>
+              </Link>
             );
           })}
           <Link

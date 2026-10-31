@@ -94,23 +94,26 @@ The Playwright config reuses already-running servers or starts the backend and f
 ## 3. Exact URLs
 
 - Dashboard: `http://localhost:3000/`
-- Direct views: `/project`, `/contributor`, `/campaigns`, `/newcomers`, `/records`, `/simulator`
+- Direct views: `/network`, `/project`, `/contributor`, `/campaigns`, `/newcomers`, `/records`, `/simulator`
+- Deep links: `/project?as=p06`, `/contributor?as=p02&id=c_disputed`, `/records?project=p03`, `/records?project=p07&tamper=signature`
 - Why-not-AI-text explainer: `http://localhost:3000/explainer`
 - API health: `http://localhost:5050/api/health`
 - Example assessment as p06: `http://localhost:5050/api/contributors/c_disputed/assessment?asProject=p06`
-- Example signed log: `http://localhost:5050/api/records?projectId=p02`
-- Example tamper demo: `http://localhost:5050/api/records?projectId=p02&tamper=signature`
+- Example signed log: `http://localhost:5050/api/records?projectId=p07`
+- Example tamper demo: `http://localhost:5050/api/records?projectId=p07&tamper=signature`
 
 ## 4. Demo walkthrough
 
-Every view is pre-rendered from an embedded seed-42 snapshot in `frontend/lib/snapshot.json`, so the first paint shows real projects, records and campaign evidence even while the API host is cold or unreachable. When the API answers, the view refreshes in the background; a failed refresh keeps the snapshot instead of replacing the page with a spinner. Each view also has its own URL, so it can be opened directly.
+Every view is pre-rendered from an embedded seed-42 snapshot in `frontend/lib/snapshot.json`, so the first paint shows real projects, records and campaign evidence even while the API host is cold or unreachable. When the API answers, the view refreshes in the background; a failed refresh keeps the snapshot instead of replacing the page with a spinner and retries the health check automatically.
+
+Every view has a real URL, and every selection is stored in it. Clicking a graph node changes the address to `/project?as=p06`, so the back button, refresh, and shared links all keep the same view. Records accepts `?project=` and `?tamper=`, and Contributor accepts `?as=` and `?id=`.
 
 1. **Network.** Open `http://localhost:3000/`. The map shows the 24 strongest trust links by default so it stays readable; turn on **Show every link** for all 88 connections. **Find a project** by name, id or maintainer handle, and tick **Only links touching** to narrow the map to one project's relationships. Click the `spruce` circle (`p06`) or use the project list. The badge changes to “looking through p06”, and the Project view opens. Switch “Evaluate as” between `p06`, `p08` and `p10`; the contributor totals and outcomes change because each project reads a different slice of the network. A **Words made simple** panel defines trust link, vouch, denounce, newcomer and the other labels.
 2. **Project view.** As `p10 · Jade Workers`, 21 contributors are assessed from p10's own trust list. The twelve `nova-build-*` accounts are flagged, while `kai-ai-assisted` is under normal review. The reasons are ordered and linked to signed records or PR evidence.
 3. **Contributor explanation.** Open **Contributor**. `marco-disputed` is normal review as `p10` because p10 has no applicable signed record. Select `p06`: the outcome becomes **Caution** from a single evidence-backed denouncement issued by p07 (effective trust 0.9). Select `p08`: it returns to **Normal review** because p08 gives p07's record zero weight. Then enter `c_human_spam` and assess as `p10`: **Flagged** with near-duplicate content, burst timing, high volume/low merge and an evidence-backed denouncement.
 4. **Coordinated campaign.** Open **Campaigns**. `campaign_01` links 12 accounts across 24 projects with five independent signal types and high confidence. Each signal lists PR/record references, and the timeline shows the burst. No campaign is reported without at least two signal types and two linked accounts.
 5. **Newcomer lane.** Open **Newcomers**. Twelve accounts are neutral with the exact note “No history. Treated as neutral.” They receive starter-task suggestions, not blocks. Click a **Simulated sponsor vouch** button. The returned record is Ed25519-signed and verified; the success line shows its record id and active status.
-6. **Records and tamper demo.** Open **Records**. The default `p02 · Maple Testing` log has 28 verified entries. Use **Add a signed note** to append a signed `vouch`, `denounce` or `revoke`; the success line shows the record id, signature validity and active state, and the log switches to the signer. A revocation must reference a record issued by the same project, and the revoked entry then shows `valid · revoked`. Choose **Tamper signature**: the log becomes rejected and the modified entry is shown with `invalid_signature`. Choose **Break chain**: the middle entry is shown with `broken_chain`. The banner states that only a copy was modified; the stored log is unchanged. **Verified** restores the real log.
+6. **Records and tamper demo.** Open **Records**. The page starts on `p07 · Teak Serialization`, whose log contains both a vouch and a denouncement; the type strip above the log shows the total vouches, denouncements and revocations across all projects, and each row shows `signature ok`, `hash intact` and `chain intact`. Use **Add a signed note** to append a signed `vouch`, `denounce` or `revoke`; the success line shows the record id, signature validity and active state, and the log switches to the signer. A revocation must reference a record issued by the same project, and the revoked entry then shows `valid · revoked`. Choose **Tamper signature**: the log becomes rejected and the modified entry is shown with `invalid_signature`. Choose **Break chain**: the middle entry is shown with `broken_chain`. The banner states that only a copy was modified; the stored log is unchanged. **Verified** restores the real log. Open `/records?project=p03` for a log of twelve vouches, or `/records?project=p02` for one of twenty-eight denouncements.
 7. **Simulator.** Open **Simulator**. Set seed `99`, projects `20`, campaign accounts `10`, and click **Rebuild simulation**. The whole in-memory world is rebuilt deterministically. **Measure across seeds** runs seeds 42, 7, 99, 123 and 2026 and reports means, ranges and variance against simulator ground truth.
 8. **Why not AI-text.** Open **Why not AI-text** in the sidebar or `http://localhost:3000/explainer`. The AI-assisted contributor and the human-written spammer are judged by the same behavioral rules; the AI-assisted contributor is under normal review and the spammer is flagged. The page states the simulation caveat and the false-positive risks of text-origin detection.
 
@@ -138,7 +141,7 @@ backend/
   test/                  Node test runner + Supertest
 frontend/
   app/                   App Router; dashboard and explainer pages
-  components/            eight views and shared UI/state components
+  components/            nine views and shared UI/state components
   hooks/useApiResource.js abortable data loading with stale-key protection
   lib/api.js             typed-ish API client and error mapping
   lib/format.js          date, rate, hash and outcome formatting
@@ -311,9 +314,9 @@ cd frontend && npx eslint . && npm run build && npm run test:e2e
 Verified in this build:
 
 - **46 backend tests pass** (Node test runner + Supertest): signatures, tampering, hash chains, gossip, expiry/revocation, transitive decay, cycle safety, strongest path, cluster independence, denouncement safeguards, vouch caps, newcomer neutrality, campaign signals and clustering, determinism, size/seed validation, API error shapes, CORS, metrics.
-- **11 Playwright Chromium flows pass**: viewing as different projects; a contributor explanation; the campaign view; the newcomer lane plus signed sponsor vouch; both tamper modes; graph search, edge filtering and node navigation; signing and revoking a denouncement; a signed record surviving a page reload; a retryable error when the API is unreachable; phone-width overflow checks across all views; and rebuilding from a new seed plus multi-seed metrics.
-- Frontend ESLint passes; the production build generates all nine routes (`/`, `/project`, `/contributor`, `/campaigns`, `/newcomers`, `/records`, `/simulator`, `/explainer`, not-found) as static pages with real snapshot content in the HTML.
-- Responsive checks at 1440×1000 and 390×844 found no page-level horizontal overflow and no uncaught page errors across all eight views.
+- **12 Playwright Chromium flows pass**: viewing as different projects (including a URL change and a reload that keeps the same project); a contributor explanation; the campaign view; the newcomer lane plus signed sponsor vouch; both tamper modes with both record types visible; graph search, edge filtering and node navigation; signing and revoking a denouncement; a signed record surviving a page reload; a retryable error when the API is unreachable; phone-width overflow checks across all views; direct-URL deep links for every view; and rebuilding from a new seed plus multi-seed metrics.
+- Frontend ESLint passes; the production build generates all ten routes (`/`, `/network`, `/project`, `/contributor`, `/campaigns`, `/newcomers`, `/records`, `/simulator`, `/explainer`, not-found) as static pages with real snapshot content in the HTML.
+- Responsive checks at 1440×1000 and 390×844 found no page-level horizontal overflow and no uncaught page errors across all nine views.
 
 ## 14. Why AI-text detection alone is insufficient
 

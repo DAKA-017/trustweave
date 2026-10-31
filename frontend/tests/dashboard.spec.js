@@ -10,7 +10,7 @@ test.beforeEach(async ({ request, page }) => {
   });
   expect(reset.ok()).toBeTruthy();
   await page.goto("/");
-  await expect(page.getByRole("button", { name: "Network", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Network", exact: true })).toBeVisible();
 });
 
 test.afterAll(async () => {
@@ -27,6 +27,16 @@ test("views the network as different projects", async ({ page }) => {
   ).toBeVisible();
 
   await page.getByTestId("node-p06").click();
+  await expect(page).toHaveURL(/\/project\?as=p06$/);
+  await expect(
+    page.getByRole("heading", {
+      level: 1,
+      name: "Assessing as Spruce Validation",
+    }),
+  ).toBeVisible();
+  await expect(page.locator("#project-selector")).toHaveValue("p06");
+
+  await page.reload();
   await expect(
     page.getByRole("heading", {
       level: 1,
@@ -55,7 +65,7 @@ test("views the network as different projects", async ({ page }) => {
 test("explains a contributor from signed records and behavioral signals", async ({
   page,
 }) => {
-  await page.getByRole("button", { name: "Contributor", exact: true }).click();
+  await page.getByRole("link", { name: "Contributor", exact: true }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(
     "marco-disputed",
   );
@@ -99,7 +109,7 @@ test("explains a contributor from signed records and behavioral signals", async 
 test("shows the coordinated campaign with multiple independent signals", async ({
   page,
 }) => {
-  await page.getByRole("button", { name: "Campaigns", exact: true }).click();
+  await page.getByRole("link", { name: "Campaigns", exact: true }).click();
   await expect(
     page.getByRole("heading", { level: 1, name: "Campaigns" }),
   ).toBeVisible();
@@ -134,7 +144,7 @@ test("shows the coordinated campaign with multiple independent signals", async (
 test("keeps neutral newcomers unblocked and signs a sponsor vouch", async ({
   page,
 }) => {
-  await page.getByRole("button", { name: "Newcomers", exact: true }).click();
+  await page.getByRole("link", { name: "Newcomers", exact: true }).click();
   await expect(
     page.getByRole("heading", { level: 1, name: "Newcomer lane" }),
   ).toBeVisible();
@@ -154,12 +164,16 @@ test("keeps neutral newcomers unblocked and signs a sponsor vouch", async ({
 });
 
 test("demonstrates signature and hash-chain rejection", async ({ page }) => {
-  await page.getByRole("button", { name: "Records", exact: true }).click();
+  await page.getByRole("link", { name: "Records", exact: true }).click();
   await expect(
     page.getByRole("heading", { level: 1, name: "Records" }),
   ).toBeVisible();
-  await expect(page.locator("#records-project")).toHaveValue("p02");
+  await expect(page.locator("#records-project")).toHaveValue("p07");
   await expect(page.getByText("log valid")).toBeVisible();
+  await expect(page.getByTestId("records-summary")).toContainText("vouch");
+  await expect(page.getByTestId("records-summary")).toContainText("denounce");
+  await expect(page.getByText("vouch", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("denounce", { exact: true }).first()).toBeVisible();
 
   await page.getByRole("button", { name: "Tamper signature" }).click();
   await expect(page.getByText("Tamper demo:", { exact: false })).toBeVisible();
@@ -220,7 +234,7 @@ test("searches, filters and navigates the trust graph", async ({ page }) => {
 });
 
 test("signs a denouncement and then revokes it", async ({ page }) => {
-  await page.getByRole("button", { name: "Records", exact: true }).click();
+  await page.getByRole("link", { name: "Records", exact: true }).click();
   await page.getByTestId("record-issuer").selectOption("p10");
   await page.getByTestId("record-type").selectOption("denounce");
   await page.getByTestId("record-subject").fill("c_new_good");
@@ -247,24 +261,28 @@ test("signs a denouncement and then revokes it", async ({ page }) => {
 });
 
 test("keeps a signed record after a page reload", async ({ page, request }) => {
-  await page.getByRole("button", { name: "Records", exact: true }).click();
+  await page.getByRole("link", { name: "Records", exact: true }).click();
   await page.getByTestId("record-subject").fill("c_new_good");
   await page.getByTestId("record-submit").click();
 
   const result = page.getByTestId("record-result");
   await expect(result).toContainText("signature valid");
-  const recordId = (await result.innerText()).match(/r_p02_\d+/)?.[0];
+  const recordId = (await result.innerText()).match(/r_p07_\d+/)?.[0];
   expect(recordId).toBeTruthy();
 
   await page.reload();
+  await expect(page).toHaveURL(/\/records/);
   await expect(
-    page.getByRole("button", { name: "Network", exact: true }),
+    page.getByRole("heading", { level: 1, name: "Records" }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Records", exact: true }).click();
-  await expect(page.locator("#records-project")).toHaveValue("p02");
+  await expect(
+    page.getByRole("link", { name: "Network", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("link", { name: "Records", exact: true }).click();
+  await expect(page.locator("#records-project")).toHaveValue("p07");
   await expect(page.getByText(recordId, { exact: true })).toBeVisible();
 
-  const log = await request.get(`${API_BASE}/records?projectId=p02`);
+  const log = await request.get(`${API_BASE}/records?projectId=p07`);
   const body = await log.json();
   const ids = body.log.entries.map((entry) => entry.record.id);
   expect(ids).toContain(recordId);
@@ -286,16 +304,17 @@ test("has no horizontal overflow on a phone viewport", async ({ page }) => {
   page.on("pageerror", (error) => pageErrors.push(error.message));
   await page.setViewportSize({ width: 390, height: 844 });
 
-  for (const name of [
-    "Network",
-    "Project view",
-    "Contributor",
-    "Campaigns",
-    "Newcomers",
-    "Records",
-    "Simulator",
+  for (const [name, url] of [
+    ["Network", /\/network$/],
+    ["Project view", /\/project\?as=/],
+    ["Contributor", /\/contributor\?as=/],
+    ["Campaigns", /\/campaigns$/],
+    ["Newcomers", /\/newcomers$/],
+    ["Records", /\/records$/],
+    ["Simulator", /\/simulator$/],
   ]) {
-    await page.getByRole("button", { name, exact: true }).click();
+    await page.getByRole("link", { name, exact: true }).click();
+    await expect(page).toHaveURL(url);
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - window.innerWidth,
@@ -312,10 +331,53 @@ test("has no horizontal overflow on a phone viewport", async ({ page }) => {
   expect(pageErrors).toEqual([]);
 });
 
+test("opens every view from a direct URL and keeps deep-linked state", async ({
+  page,
+}) => {
+  await page.goto("/network");
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Network" }),
+  ).toBeVisible();
+
+  for (const [path, heading] of [
+    ["/campaigns", "Campaigns"],
+    ["/newcomers", "Newcomer lane"],
+    ["/records", "Records"],
+    ["/simulator", "Simulator"],
+  ]) {
+    await page.goto(path);
+    await expect(page).toHaveURL(path);
+    await expect(
+      page.getByRole("heading", { level: 1, name: heading }),
+    ).toBeVisible();
+  }
+
+  await page.goto("/project?as=p06");
+  await expect(page.locator("#project-selector")).toHaveValue("p06");
+  await expect(
+    page.getByRole("heading", {
+      level: 1,
+      name: "Assessing as Spruce Validation",
+    }),
+  ).toBeVisible();
+
+  await page.goto("/contributor?as=p02&id=c_disputed");
+  await expect(page.locator("#assessment-project")).toHaveValue("p02");
+  await expect(page.locator("#contributor-id")).toHaveValue("c_disputed");
+
+  await page.goto("/records?project=p03&tamper=signature");
+  await expect(page.locator("#records-project")).toHaveValue("p03");
+  await expect(page.getByText("log rejected")).toBeVisible();
+  await expect(
+    page.getByText("Tamper demo:", { exact: false }),
+  ).toBeVisible();
+  await expect(page.getByText("vouch", { exact: true }).first()).toBeVisible();
+});
+
 test("rebuilds the simulation from a new seed and measures across seeds", async ({
   page,
 }) => {
-  await page.getByRole("button", { name: "Simulator", exact: true }).click();
+  await page.getByRole("link", { name: "Simulator", exact: true }).click();
   await expect(
     page.getByRole("heading", { level: 1, name: "Simulator" }),
   ).toBeVisible();
