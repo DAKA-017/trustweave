@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: trustweave-api
+    runtime: node
+    plan: free
+    region: oregon
+    rootDir: backend
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SIM_SEED
+        value: "42"
+      # Set this to the exact Vercel production origin, e.g.
+      # https://trustweave.vercel.app (no trailing slash).
+      - key: FRONTEND_ORIGIN
+        sync: false

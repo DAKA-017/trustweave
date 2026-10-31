@@ -1,0 +1,419 @@
+# TrustWeave
+
+A decentralized trust network for open source contributions, built as a deterministic simulation for a hackathon.
+
+TrustWeave has **no central authority and no global contributor score**. Every answer is computed *as a specific project*, from the signed records that project chooses to read, weighted by that project's own trust list. A contributor can be `caution` for one project and `normal_review` for another at the same moment.
+
+> **Simulation notice:** all projects, contributors, pull requests, keys, records and ground-truth labels are simulated in memory. The application is read-only with respect to the outside world. It does not contact, read from, or post to any real repository. No AI-text detector is used anywhere.
+
+## At a glance
+
+| Item | Value |
+| --- | --- |
+| Dashboard | `http://localhost:3000/` |
+| Explainer page | `http://localhost:3000/explainer` |
+| API base | `http://localhost:5050/api` |
+| Health check | `http://localhost:5050/api/health` |
+| Backend | Node.js, Express 4 (ESM), Zod, Node `crypto` |
+| Frontend | Next.js 16 App Router, React 19, Tailwind CSS 4, lucide-react |
+| Storage | In-memory only; restarting the backend resets everything |
+| Credentials | No AI or GitHub credentials; no login; no database |
+| Deployment | Backend on Render, frontend on Vercel (see §15) |
+
+## 1. Prerequisites
+
+- **Node.js 20.12 or newer** (tested with Node 26.13 and npm 11.20). Node includes npm.
+- **Git 2.54** (tested; only needed if you want version control).
+- The Playwright test run downloads Chromium once.
+- No database, Docker, login provider, or payment provider is required for local use. A free Render + Vercel deployment path is documented in §15.
+
+Check your tools:
+
+```bash
+node -v
+npm -v
+git --version
+```
+
+If Node is missing, install the current LTS release from `https://nodejs.org/` (or `brew install node` on macOS). If Git is missing on macOS, run `xcode-select --install`, or install it with Homebrew.
+
+## 2. Setup and run
+
+### Backend
+
+```bash
+cd backend
+npm install
+npm test
+npm start
+```
+
+The server reads `backend/.env` (exactly one env file; there is no `.env.example`). Create it with these non-secret values:
+
+```dotenv
+NODE_ENV=development
+PORT=5050
+FRONTEND_ORIGIN=http://localhost:3000
+SIM_SEED=42
+```
+
+The backend exposes `http://localhost:5050/api/health`. Port 5000 is occupied by macOS ControlCenter (AirPlay Receiver) on the machine this was built on, so the demo uses **5050**. If port 5000 is free for you, you may switch `PORT` to 5000, but you must then also change the frontend API URL below and restart both processes. `FRONTEND_ORIGIN` must remain the exact origin of the dashboard because CORS is restricted to it.
+
+### Frontend
+
+In a second terminal:
+
+```bash
+cd frontend
+npm install
+npx playwright install chromium
+npm run dev
+```
+
+Create `frontend/.env` with exactly:
+
+```dotenv
+NEXT_PUBLIC_API_BASE_URL=http://localhost:5050/api
+```
+
+Open `http://localhost:3000/`. The frontend refuses to silently talk to a different port: if the API is unreachable it shows a retryable connection error.
+
+### End-to-end tests
+
+```bash
+cd frontend
+npm run test:e2e
+```
+
+The Playwright config reuses already-running servers or starts the backend and frontend itself. Each test resets the simulation to seed 42, 30 projects and 12 campaign accounts; the suite also restores that state when it finishes. The tests run sequentially because the simulation host is mutable in-memory state.
+
+## 3. Exact URLs
+
+- Dashboard: `http://localhost:3000/`
+- Why-not-AI-text explainer: `http://localhost:3000/explainer`
+- API health: `http://localhost:5050/api/health`
+- Example assessment as p06: `http://localhost:5050/api/contributors/c_disputed/assessment?asProject=p06`
+- Example signed log: `http://localhost:5050/api/records?projectId=p02`
+- Example tamper demo: `http://localhost:5050/api/records?projectId=p02&tamper=signature`
+
+## 4. Demo walkthrough
+
+1. **Network.** Open `http://localhost:3000/`. The graph shows every project's declared direct trust edges. Click the `spruce` node (`p06`) or use the project list. The badge changes to “evaluating as p06”, and the Project view opens. Switch “Evaluate as” between `p06`, `p08` and `p10`; the contributor totals and outcomes change because each project reads a different slice of the network.
+2. **Project view.** As `p10 · Jade Workers`, 21 contributors are assessed from p10's own trust list. The twelve `nova-build-*` accounts are flagged, while `kai-ai-assisted` is under normal review. The reasons are ordered and linked to signed records or PR evidence.
+3. **Contributor explanation.** Open **Contributor**. `marco-disputed` is normal review as `p10` because p10 has no applicable signed record. Select `p06`: the outcome becomes **Caution** from a single evidence-backed denouncement issued by p07 (effective trust 0.9). Select `p08`: it returns to **Normal review** because p08 gives p07's record zero weight. Then enter `c_human_spam` and assess as `p10`: **Flagged** with near-duplicate content, burst timing, high volume/low merge and an evidence-backed denouncement.
+4. **Coordinated campaign.** Open **Campaigns**. `campaign_01` links 12 accounts across 24 projects with five independent signal types and high confidence. Each signal lists PR/record references, and the timeline shows the burst. No campaign is reported without at least two signal types and two linked accounts.
+5. **Newcomer lane.** Open **Newcomers**. Twelve accounts are neutral with the exact note “No history. Treated as neutral.” They receive starter-task suggestions, not blocks. Click a **Simulated sponsor vouch** button. The returned record is Ed25519-signed and verified; the success line shows its record id and active status.
+6. **Records and tamper demo.** Open **Records**. The default `p02 · Maple Testing` log has 28 verified entries. Choose **Tamper signature**: the log becomes rejected and the modified entry is shown with `invalid_signature`. Choose **Break chain**: the middle entry is shown with `broken_chain`. The banner states that only a copy was modified; the stored log is unchanged. **Verified** restores the real log.
+7. **Simulator.** Open **Simulator**. Set seed `99`, projects `20`, campaign accounts `10`, and click **Rebuild simulation**. The whole in-memory world is rebuilt deterministically. **Measure across seeds** runs seeds 42, 7, 99, 123 and 2026 and reports means, ranges and variance against simulator ground truth.
+8. **Why not AI-text.** Open **Why not AI-text** in the sidebar or `http://localhost:3000/explainer`. The AI-assisted contributor and the human-written spammer are judged by the same behavioral rules; the AI-assisted contributor is under normal review and the spammer is flagged. The page states the simulation caveat and the false-positive risks of text-origin detection.
+
+After a simulator change, rebuild seed `42`, size `30`, campaign `12` to return to the documented demo state.
+
+## 5. Architecture
+
+```
+backend/
+  app.js                 Express app factory (CORS, 64 kb JSON limit, routes, errors)
+  server.js              process entry point
+  config/                env loading and defaults
+  routes/api.js          API route table
+  controllers/           HTTP parsing and response shaping
+  services/
+    records.js           append-only per-project hash chains, signing, verification
+    trust-engine.js      effective trust, independence, outcomes, reasons
+    campaign-detector.js six behavioral signals and campaign clustering
+    simulator.js         deterministic seeded world and hard cases
+    simulation-host.js   in-memory host used by requests
+    metrics.js           precision/recall/newcomer/explanation metrics
+  models/schemas.js      Zod data-model and request validation
+  middleware/            not-found and error formatting
+  utils/                 canonical JSON, Ed25519, SHA-256, PRNG, similarity
+  test/                  Node test runner + Supertest
+frontend/
+  app/                   App Router; dashboard and explainer pages
+  components/            eight views and shared UI/state components
+  hooks/useApiResource.js abortable data loading with stale-key protection
+  lib/api.js             typed-ish API client and error mapping
+  lib/format.js          date, rate, hash and outcome formatting
+  tests/                 Playwright end-to-end flows
+  playwright.config.js   starts/reuses both servers
+```
+
+Requests flow **route → controller → service → validation/simulation state → response**. There is no database. One process hosts every simulated project, but it is explicitly *not* an authority: each project has its own key and log, and each assessment uses only that project's trust configuration. Gossip is simulated by having a requester pull and independently verify a peer's log.
+
+## 6. Record format and verification
+
+A record is a signed, append-only JSON object:
+
+```json
+{
+  "id": "r_p07_3",
+  "type": "denounce",
+  "issuerProjectId": "p07",
+  "subjectContributorId": "c_disputed",
+  "createdAt": "2026-10-30T12:00:00.000Z",
+  "reasonCode": "repeated_low_quality_patch",
+  "evidence": [
+    { "kind": "pull_request", "ref": "pr_0091" }
+  ],
+  "previousRecordHash": "0000000000000000000000000000000000000000000000000000000000000000",
+  "signature": "base64 Ed25519 signature"
+}
+```
+
+- `previousRecordHash` points at the previous signed record's SHA-256 hash, or 64 zeros for the first entry.
+- The signature covers the **canonical JSON of the record without its `signature` field** (recursively sorted keys). The canonical form is signed with the issuer project's Ed25519 private key.
+- The log entry stores `hash = SHA-256(canonical record including its signature)`. Verification recomputes the signature, the entry hash, and the link from the previous record.
+- A `revoke` record must reference `subjectRecordId` and may only revoke a record issued by the same project. `expiresAt` makes a record expired. Both expired and revoked records remain visible in verification output but are ignored by the evaluator with an explicit reason.
+- Invalid records are shown as rejected with their failed checks: `invalid_signature`, `hash_mismatch`, or `broken_chain`. They are never silently dropped.
+- Keys are deterministic for reproducibility (derived from a namespace with SHA-256). This is **not** real identity management; real deployments would generate keys on maintainers' devices.
+
+## 7. Per-project trust and transitive decay
+
+Effective trust from project X to project Y is the **strongest simple path** from X to Y:
+
+```
+trust(X, Y) = max over simple paths P from X to Y of  product(edge weights along P)
+```
+
+- `trust(X, X) = 1`.
+- At most 3 edges by default (`maxDepth: 3`); depth counts edges.
+- Cycles are tracked and terminated; the strongest path wins, not the first path found.
+- Edges with weight 0 are ignored.
+- Example: `a → b (0.8)`, `b → c (0.8)`, `c → d (0.8)` gives `trust(a, b)=0.8`, `trust(a, c)=0.64`, `trust(a, d)=0.512`. A depth limit of 2 stops at `c`.
+- A project with no path to an issuer has effective trust 0; that issuer's records are **ignored with a visible reason**, not counted as negative.
+
+Independence is also project-relative. Two denouncing projects count as **one source** if they share a maintainer or are in the same mutual-trust cluster (both directions have weight at least 0.5). This prevents a group of allied projects from manufacturing “two independent” denouncements.
+
+## 8. Outcomes and safeguards
+
+Every assessment returns one graded outcome plus ordered, human-readable reasons with references. Weights are signal weights, **not a spam probability**.
+
+| Outcome | Condition |
+| --- | --- |
+| `normal_review` | No threshold reached. Unknown/no-record contributors land here, with the note “No history. Treated as neutral.” |
+| `caution` | Exactly one independent, evidence-backed denouncement with total weight ≥ 0.5, **or** exactly one behavioral signal type. |
+| `flagged` | At least two independent, evidence-backed denouncement sources with total weight ≥ the flag threshold (default 1), **or** at least two independent behavioral signal types. |
+| `coordinated_campaign` | Campaign-level only: at least two linked accounts and at least two distinct signal types. |
+
+Safeguards:
+
+- **No global score.** There is no endpoint that returns a universal reputation number. Assessments require `asProject`.
+- **Evidence is required for denouncements.** A denouncement with an empty evidence list is ignored with `no_evidence`, even from a trusted project.
+- **Zero trust contributes zero.** Records from untrusted issuers are explained and discarded.
+- **Mass denouncers are down-weighted.** If one issuer denounces at least 5 contributors and more than 50% of active contributors, its factor is `max(0.15, 0.5 / share)`.
+- **One weak signal cannot punish.** A single signal type is capped at `caution`; flagging by signals requires at least two independent types.
+- **Correlated denouncers are one source.** Shared maintainers or mutual-trust clusters collapse into one source before the two-source test.
+- **Vouches are capped.** At most 0.5 support per single source and 1.0 total; a vouch without evidence counts half. Vouches are recorded as support and **never erase** evidence-backed denouncements.
+- **Appeals by expiry/revocation.** Expired or revoked records are ignored with reasons, and the outcome can return to normal review.
+- **Newcomers are never auto-blocked.** No records and no signals means normal review, the exact required note, starter-task suggestions and an optional sponsor vouch.
+- **All verification failures are visible.** Rejected records and ignored records are listed rather than hidden.
+
+## 9. Campaign detection
+
+The detector is network-wide (it looks across projects) and uses six independent behavioral signals. There is no text-origin classifier; the `contentSample` field is used only to measure near-duplicate word shingles.
+
+| Signal | Weight | Rule |
+| --- | --- | --- |
+| `near_duplicate_content` | 0.80 | Word 4-gram Jaccard ≥ 0.82 across at least 3 projects |
+| `burst_timing` | 0.70 | ≥ 5 PRs across ≥ 4 projects inside 48 hours |
+| `new_accounts_in_sync` | 0.75 | Accounts ≤ 21 days old submit ≥ 6 PRs across ≥ 6 projects inside a 6-hour window |
+| `vouch_ring` | 0.70 | Vouch-graph strongly connected component with at most one outside vouch; ≥ 3 accounts (or 2 very new accounts) |
+| `high_volume_low_merge` | 0.65 | ≥ 10 submissions with a merge rate below 15% |
+| `denouncement_burst` | 0.80 | ≥ 3 evidence-backed denouncements from ≥ 2 independent sources within 30 days |
+
+Accounts are clustered when they share near-duplicate content, synchronized new-account activity, or a vouch ring. A cluster is reported only if it has **at least two accounts and at least two distinct signal types**. Confidence is `high` with ≥ 4 signal types and ≥ 8 members, `medium` with ≥ 3 types, otherwise `low`. Every signal includes evidence references, and the campaign includes its member list, affected projects, confidence reasons and a PR timeline (the API keeps up to 400 events; the UI displays 120 and says so).
+
+Simulated PR content is used for duplicate detection only. It is never inspected for AI authorship.
+
+## 10. Seeded simulator
+
+- Deterministic PRNG (`mulberry32`) and a fixed simulation clock: `2026-11-01T12:00:00.000Z`.
+- Default world: 30 projects, 49 contributors, 417 pull requests, 126 signed records. Configurable to 20–50 projects and 10–15 campaign accounts.
+- The injected campaign has 12 accounts that reach 24 projects with five signal types.
+- Twelve neutral newcomers, including honest newcomers, a non-native English writer and an AI-assisted contributor.
+- Hard cases exercised by tests and the Simulator view: honest multi-project newcomer, legitimate AI assistance, human-written spam, non-native phrasing, no-evidence malicious denouncement, per-project divergence, campaign member, sybil project with zero weight, and a low-credibility mass denouncer.
+- Same seed ⇒ same keys, logs, PRs, signals and metrics. Different seeds produce independent worlds.
+
+## 11. Measured results (and their limits)
+
+Current default world (seed 42, 30 projects, 12 campaign accounts):
+
+- Campaign precision **1.000**, recall **1.000** (12 predicted members, 12 truth members, 1 campaign, 24 affected projects, 5 signal types).
+- Newcomer false flags **0 of 14** across 30 evaluating projects.
+- Explanation completeness **29 / 29** non-neutral assessments with at least one reference.
+- Hard cases **9 / 9**.
+- Counts: 30 projects, 49 contributors, 417 PRs, 126 signed records.
+
+Multi-seed run (seeds 42, 7, 99, 123, 2026; 20 projects, 10 campaign accounts):
+
+- Campaign precision mean **1.000**, recall mean **1.000**.
+- Newcomer false-flag maximum **0.000**; explanation completeness minimum **1.000**.
+- Hard cases **45 / 45**; measured variance **0** for all reported rates.
+
+**Honest caveat:** these are synthetic, idealized results. The generator is constructed to contain a detectable campaign and its labels are known to the simulator. Perfect scores are not evidence of real-world precision or recall, and the detector has not been calibrated against real repository data. The metrics demonstrate that the implemented safeguards behave as specified inside this simulation, nothing more.
+
+## 12. API
+
+All responses are JSON. Request validation uses Zod. The JSON body limit is 64 kb. CORS only accepts `FRONTEND_ORIGIN`.
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/api/health` | Service/simulation status and counts |
+| POST | `/api/simulate` | Rebuild the world from `{ seed?, size?, campaignSize? }` |
+| GET | `/api/projects` | Projects, declared trust edges, public keys, counts |
+| GET | `/api/projects/:id/view` | Assessments as one project |
+| GET | `/api/contributors/:id/assessment?asProject=...` | One explainable assessment |
+| GET | `/api/newcomers` | Neutral newcomer lane and sponsor options |
+| GET | `/api/campaigns` | Detected campaigns, signals, members, evidence |
+| GET | `/api/records` | Record project summaries |
+| GET | `/api/records?projectId=...&tamper=none\|signature\|chain` | Full log and verification/tamper demo |
+| POST | `/api/records` | Append a signed vouch, denounce or revoke |
+| GET | `/api/metrics` | Current-seed precision/recall, newcomer, explanation, hard cases |
+| GET | `/api/metrics?multi=1` | Independent multi-seed metrics, variance, aggregate |
+| GET | `/api/demo/explainer` | AI-assisted vs human-written side-by-side evidence |
+
+Example record creation:
+
+```http
+POST /api/records
+Content-Type: application/json
+
+{
+  "issuerProjectId": "p01",
+  "subjectContributorId": "c_new_good",
+  "type": "vouch",
+  "reasonCode": "newcomer_sponsor_vouch",
+  "evidence": [{ "kind": "note", "ref": "simulated sponsor vouch from dashboard" }]
+}
+```
+
+Errors consistently use:
+
+```json
+{ "error": { "code": "SOME_CODE", "message": "Human-readable explanation" } }
+```
+
+## 13. Tests
+
+```bash
+cd backend && npm test
+cd frontend && npx eslint . && npm run build && npm run test:e2e
+```
+
+Verified in this build:
+
+- **46 backend tests pass** (Node test runner + Supertest): signatures, tampering, hash chains, gossip, expiry/revocation, transitive decay, cycle safety, strongest path, cluster independence, denouncement safeguards, vouch caps, newcomer neutrality, campaign signals and clustering, determinism, size/seed validation, API error shapes, CORS, metrics.
+- **6 Playwright Chromium flows pass**: viewing as different projects, a contributor explanation, the campaign view, the newcomer lane plus signed sponsor vouch, both tamper modes, and rebuilding from a new seed plus multi-seed metrics.
+- Frontend ESLint passes; the production build generates `/` and `/explainer` as static pages.
+- Responsive checks at 1440×1000 and 390×844 found no page-level horizontal overflow and no uncaught page errors across all eight views.
+
+## 14. Why AI-text detection alone is insufficient
+
+- AI-text detectors produce false positives, including on non-native English writers with unusual phrasing.
+- AI-assisted work can be correct and valuable. How a patch was drafted is not evidence about whether the patch is good.
+- Spam is a **behavior pattern**: volume, timing, cross-project similarity, account age, network structure and maintainer outcomes.
+- TrustWeave never inspects text origin. The same behavioral rules run on both explainer examples, and the outcomes, reasons and references are shown side by side.
+- The “human-written spam” label comes from simulator ground truth. The engine itself sees only PR behavior, signed records and network signals.
+
+## 15. Deployment (Vercel + Render)
+
+The app is two processes: an Express API and a Next.js frontend. The frontend calls the API from the browser, so the API must allow the exact frontend origin through CORS.
+
+| Piece | Host | Root directory | Build | Start |
+| --- | --- | --- | --- | --- |
+| Backend | Render Web Service | `backend` | `npm ci --omit=dev` | `npm start` |
+| Frontend | Vercel Next.js project | `frontend` | `next build` (Vercel default) | Vercel-managed |
+
+No database, Docker, login or credentials are needed. The included `render.yaml` defines the backend service.
+
+### 15.1 Put the project in one Git repository
+
+`frontend/` contains a nested `.git` from `create-next-app`. Move it aside before creating the root repository, otherwise Git records `frontend` as an embedded repository and Vercel/Render cannot see its files:
+
+```bash
+cd /path/to/94aa1ca4
+mv frontend/.git ../trustweave-frontend-git-backup
+git init
+git add .
+git commit -m "TrustWeave"
+git branch -M main
+git remote add origin https://github.com/<you>/trustweave.git
+git push -u origin main
+```
+
+`mv` keeps the old repository next to the project instead of deleting it. The root `.gitignore` and `backend/.gitignore` keep `node_modules`, `.env`, `.next` and test output out of the commit. Never commit either `.env`.
+
+### 15.2 Backend on Render
+
+Blueprint path:
+
+1. In the Render Dashboard choose **New → Blueprint**, connect the repository, and let Render read `render.yaml`.
+2. Set `FRONTEND_ORIGIN` to a placeholder such as `https://trustweave.vercel.app` for now.
+3. Deploy and copy the service URL, for example `https://trustweave-api.onrender.com`.
+4. Check `https://<backend>/api/health`.
+
+Manual path: **New → Web Service**, root directory `backend`, build command `npm ci --omit=dev`, start command `npm start`, health check path `/api/health`, environment variables `NODE_ENV=production`, `SIM_SEED=42`, `FRONTEND_ORIGIN=<placeholder>`.
+
+Platform environment variables take precedence over `backend/.env`, which is not deployed. Do not set `PORT`; Render injects it and `server.js` reads it.
+
+### 15.3 Frontend on Vercel
+
+1. In Vercel choose **Add New → Project** and import the same repository.
+2. Set **Root Directory** to `frontend`, keep the Next.js preset, and leave build/output defaults.
+3. Add this environment variable for Production (and Preview if you want previews):
+   `NEXT_PUBLIC_API_BASE_URL=https://<backend>/api`
+4. Deploy and copy the production URL.
+
+`NEXT_PUBLIC_API_BASE_URL` is inlined at build time, so set it before the first build and redeploy after changing it. The value must end in `/api` exactly once. A CLI alternative is `cd frontend && npx vercel`; add the variable first with `npx vercel env add NEXT_PUBLIC_API_BASE_URL production`.
+
+### 15.4 Point CORS at the deployed frontend
+
+Update Render's `FRONTEND_ORIGIN` to the exact Vercel production origin (`https://<frontend>`, no trailing slash) and save. Render redeploys automatically. Then open the deployed site.
+
+Only one exact origin is allowed. Vercel preview deployments use different origins; either open the production URL or temporarily set `FRONTEND_ORIGIN` to the preview origin.
+
+### 15.5 Verify
+
+```bash
+curl -s https://<backend>/api/health
+curl -i -s -X OPTIONS https://<backend>/api/health \
+  -H "Origin: https://<frontend>" \
+  -H "Access-Control-Request-Method: GET"
+```
+
+The second response must include `Access-Control-Allow-Origin: https://<frontend>`. Then click through Network, Contributors, Campaigns, Newcomers, Records, Simulator and Explainer.
+
+### 15.6 Deployment limitations
+
+- **In-memory state.** Every restart or redeploy rebuilds the seed-42 world; `POST /api/simulate` also resets it. There is no database.
+- **Free-tier cold starts.** Render's free web service sleeps after inactivity; the first request can take 30–60 seconds. The dashboard shows a retryable connection error.
+- **HTTPS on both sides.** Serving one side over HTTP causes mixed-content or CORS failures.
+- **Single CORS origin.** Production and preview URLs are different origins; only the configured one is accepted.
+- **Still read-only.** The deployed app never contacts a real repository.
+
+The production frontend build and production-mode backend were verified locally; no external deployment or service was used for this submission.
+
+## 16. Known limitations and out of scope
+
+- **Not a real P2P network.** One process hosts every simulated project. Gossip is simulated by pulling and verifying peer log copies; there is no libp2p, DHT, transport security or peer discovery.
+- **Not real cryptographic identity.** Ed25519 keys are valid cryptography, but they are deterministically derived for reproducibility. There is no key rotation, revocation of keys, hardware key storage or identity proof.
+- **No persistence.** State is in memory; restarting the backend resets everything. There is no database.
+- **No GitHub integration.** The app never reads or posts to a real repository, and no AI or GitHub credentials are used.
+- **No login, payments or persistent database.** These are intentionally out of scope. Deployment configuration is included, but this submission was not deployed.
+- **Synthetic evaluation.** Precision, recall and newcomer false-flag rates are measured against simulator ground truth that a real deployment would not have. The perfect scores are not a real-world accuracy claim.
+- **Patient, slow sybil attacks are not solved.** An attacker who ages accounts, varies timing and content, and avoids rings can evade these thresholds. Detecting long-horizon collusion would require more history and different analysis.
+- **Thresholds are fixed in this build.** They are configurable in code, but there is no calibration workflow against labeled real data.
+- **Simplified governance.** Revocation and expiry are implemented as record semantics, but there is no full appeal, dispute-resolution or maintainer UI beyond the records demo.
+- **Limited visual scale.** The trust graph uses a fixed circular layout rather than a force-directed or virtualized graph, hides labels on very small screens, and the demo world is limited to 50 projects.
+- **Browser coverage.** Playwright coverage is Chromium only; Safari and Firefox behavior was not part of this verification.
+
+## 17. Honest final report
+
+**What works and was run:** seeded simulation and hard cases; signed, hash-chained records with visible rejection; per-project transitive trust and independence; all six campaign signals and two-signal clustering; newcomer neutrality, starter tasks and sponsor vouching; the documented API; the dark responsive dashboard; the explainer page; the test suites and production build listed above.
+
+**What is simulated:** every project, contributor, PR, account age, content sample, key, trust edge, record, campaign and ground-truth label. The simulation host is a convenience process, not an authority. Sponsor vouches are signed with simulated project keys.
+
+**What was not verified:** behavior against real repositories, real malicious actors, real key management, long-horizon sybil strategies, load at production scale, cross-browser rendering beyond Chromium, and real-world detector precision/recall. No deployment or external service was used.
+
+**What to say plainly in a demo:** this is a working, tested simulation of the trust model and its safeguards, with honest synthetic metrics — not a production reputation system.

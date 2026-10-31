@@ -1,0 +1,25 @@
+# dependencies
+node_modules/
+
+# local env files (one per app; never commit)
+.env
+.env.*
+
+# Next.js build output
+.next/
+out/
+build/
+
+# tests and screenshots
+test-results/
+playwright-report/
+.screenshots/
+coverage/
+
+# deployment
+.vercel/
+
+# misc
+.DS_Store
+*.log
+*.pem

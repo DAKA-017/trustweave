@@ -1,0 +1,85 @@
+@import "tailwindcss";
+
+@theme {
+  --color-charcoal: #141619;
+  --color-ink: #ece9e1;
+  --color-muted: #9ba1a0;
+  --color-panel: #1a1d20;
+  --color-raised: #202428;
+  --color-line: #2c3236;
+  --color-line-strong: #3b4348;
+  --color-teal: #38d4bb;
+  --color-teal-dim: #1d8e7f;
+  --color-amber: #e9b45b;
+  --color-danger: #ef7d74;
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: dark;
+  max-width: 100%;
+}
+
+body {
+  margin: 0;
+  max-width: 100%;
+  overflow-x: hidden;
+  background: var(--color-charcoal);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--color-teal) 28%, transparent);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-teal);
+  outline-offset: 2px;
+}
+
+svg .node:focus-visible {
+  outline: none;
+}
+
+svg .node:focus-visible circle {
+  stroke: var(--color-teal);
+  stroke-width: 3;
+}
+
+.node-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  fill: var(--color-muted);
+  pointer-events: none;
+}
+
+@media (max-width: 720px) {
+  .node-label {
+    display: none;
+  }
+}
+
+/* Thin, dark scrollbars for log and timeline panes. */
+.scroll-pane {
+  scrollbar-color: var(--color-line-strong) transparent;
+  scrollbar-width: thin;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
