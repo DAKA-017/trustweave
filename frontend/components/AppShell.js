@@ -46,7 +46,7 @@ function BrandMark() {
   );
 }
 
-function Meta({ meta }) {
+function Meta({ meta, hydrated }) {
   if (!meta) {
     return (
       <span
@@ -60,6 +60,14 @@ function Meta({ meta }) {
 
   return (
     <div className="flex flex-wrap items-center gap-1.5 font-mono text-[10px] text-muted">
+      {hydrated && (
+        <span
+          data-testid="client-ready"
+          className="rounded border border-teal/40 bg-teal/10 px-1.5 py-0.5 text-teal"
+        >
+          interactive
+        </span>
+      )}
       <span className="rounded border border-line bg-panel px-1.5 py-0.5">
         seed {meta.seed}
       </span>
@@ -84,6 +92,7 @@ export function AppShell({
   meta,
   asProject,
   contributorId,
+  hydrated,
   onNavigate,
   children,
 }) {
@@ -166,7 +175,7 @@ export function AppShell({
             <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted">
               TrustWeave / {active?.label ?? "Explainer"}
             </span>
-            <Meta meta={meta} />
+            <Meta meta={meta} hydrated={hydrated} />
           </div>
         </header>
         <main className="mx-auto w-full max-w-[1320px] px-4 pb-16 pt-6 sm:px-6 lg:px-8">

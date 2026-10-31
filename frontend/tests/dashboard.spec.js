@@ -10,6 +10,7 @@ test.beforeEach(async ({ request, page }) => {
   });
   expect(reset.ok()).toBeTruthy();
   await page.goto("/");
+  await expect(page.getByTestId("client-ready")).toBeVisible();
   await expect(page.getByRole("link", { name: "Network", exact: true })).toBeVisible();
 });
 

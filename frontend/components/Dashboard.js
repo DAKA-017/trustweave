@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { CampaignView } from "@/components/CampaignView";
@@ -26,6 +32,11 @@ export function Dashboard({ initialView = "network" }) {
   const [recordTamper, setRecordTamper] = useState("none");
   const [version, setVersion] = useState(0);
   const healthAttempts = useRef(0);
+  const hydrated = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
 
   const health = useApiResource(
     (signal) => api.getHealth(signal),
@@ -132,6 +143,7 @@ export function Dashboard({ initialView = "network" }) {
       meta={health.data}
       asProject={asProject}
       contributorId={contributorId}
+      hydrated={hydrated}
       onNavigate={handleNavigate}
     >
       {healthError && (
