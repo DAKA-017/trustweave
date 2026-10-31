@@ -179,6 +179,133 @@ test("demonstrates signature and hash-chain rejection", async ({ page }) => {
   await expect(page.getByText("signature invalid")).toHaveCount(0);
 });
 
+test("searches, filters and navigates the trust graph", async ({ page }) => {
+  const count = page.getByTestId("network-count");
+  await expect(count).toContainText("30 of 30 projects");
+  const allEdges = await count.innerText();
+
+  await page.getByTestId("network-search").fill("Kelp");
+  await expect(page.getByTestId("project-row-p08")).toBeVisible();
+  await expect(page.getByTestId("project-row-p10")).toHaveCount(0);
+  await expect(page.getByTestId("node-p08")).toBeVisible();
+  await expect(page.getByTestId("node-p10")).toHaveCount(0);
+
+  await page.getByTestId("network-search").fill("nora-api");
+  await expect(page.getByTestId("node-p10")).toBeVisible();
+  await expect(page.getByTestId("project-row-p10")).toBeVisible();
+
+  await page.getByTestId("network-search").fill("no-such-project");
+  await expect(
+    page.getByText("No projects match", { exact: false }).first(),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Clear filters" }).click();
+  await expect(count).toHaveText(allEdges);
+
+  await page.getByTestId("network-only-selected").check();
+  await expect(count).not.toHaveText(allEdges);
+  await expect(count).toContainText("of");
+
+  await page.getByRole("button", { name: "Clear filters" }).click();
+  await page.getByTestId("node-p06").click();
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Assessing as Spruce Validation" }),
+  ).toBeVisible();
+});
+
+test("signs a denouncement and then revokes it", async ({ page }) => {
+  await page.getByRole("button", { name: "Records", exact: true }).click();
+  await page.getByTestId("record-issuer").selectOption("p10");
+  await page.getByTestId("record-type").selectOption("denounce");
+  await page.getByTestId("record-subject").fill("c_new_good");
+  await page.getByTestId("record-reason").fill("demo_denouncement");
+  await page.getByTestId("record-evidence").fill("demo evidence note");
+  await page.getByTestId("record-submit").click();
+
+  const result = page.getByTestId("record-result");
+  await expect(result).toContainText("signature valid");
+  await expect(result).toContainText("active");
+  const denounceId = (await result.innerText()).match(/r_p10_\d+/)?.[0];
+  expect(denounceId).toBeTruthy();
+
+  await page.getByTestId("record-type").selectOption("revoke");
+  await page.getByTestId("record-subject-record").fill(denounceId);
+  await page.getByTestId("record-evidence").fill("revocation demo");
+  await page.getByTestId("record-submit").click();
+  await expect(result).toContainText("Signed revoke");
+  await expect(result).toContainText("signature valid");
+
+  await expect(page.locator("#records-project")).toHaveValue("p10");
+  await expect(page.getByText("valid · revoked").first()).toBeVisible();
+  await expect(page.getByText("Revoked", { exact: true })).toBeVisible();
+});
+
+test("keeps a signed record after a page reload", async ({ page, request }) => {
+  await page.getByRole("button", { name: "Records", exact: true }).click();
+  await page.getByTestId("record-subject").fill("c_new_good");
+  await page.getByTestId("record-submit").click();
+
+  const result = page.getByTestId("record-result");
+  await expect(result).toContainText("signature valid");
+  const recordId = (await result.innerText()).match(/r_p02_\d+/)?.[0];
+  expect(recordId).toBeTruthy();
+
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: "Network", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Records", exact: true }).click();
+  await expect(page.locator("#records-project")).toHaveValue("p02");
+  await expect(page.getByText(recordId, { exact: true })).toBeVisible();
+
+  const log = await request.get(`${API_BASE}/records?projectId=p02`);
+  const body = await log.json();
+  const ids = body.log.entries.map((entry) => entry.record.id);
+  expect(ids).toContain(recordId);
+});
+
+test("shows a retryable error when the API is unreachable", async ({ page }) => {
+  await page.route("**/api/**", (route) => route.abort());
+  await page.reload();
+  await expect(page.getByRole("alert").first()).toContainText(
+    "Cannot reach the TrustWeave API",
+  );
+  await expect(
+    page.getByRole("button", { name: "Retry connection" }),
+  ).toBeVisible();
+});
+
+test("has no horizontal overflow on a phone viewport", async ({ page }) => {
+  const pageErrors = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  for (const name of [
+    "Network",
+    "Project view",
+    "Contributor",
+    "Campaigns",
+    "Newcomers",
+    "Records",
+    "Simulator",
+  ]) {
+    await page.getByRole("button", { name, exact: true }).click();
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - window.innerWidth,
+    );
+    expect(overflow, `${name} overflows horizontally`).toBeLessThanOrEqual(1);
+  }
+
+  await page.goto("/explainer");
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - window.innerWidth,
+  );
+  expect(overflow).toBeLessThanOrEqual(1);
+  expect(pageErrors).toEqual([]);
+});
+
 test("rebuilds the simulation from a new seed and measures across seeds", async ({
   page,
 }) => {

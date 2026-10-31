@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useApiResource } from "@/hooks/useApiResource";
 import { api } from "@/lib/api";
 import { PageHeader, Panel, Stat } from "@/components/ui";
@@ -46,6 +47,8 @@ export function NetworkView({
   asProject,
   onOpenProject,
 }) {
+  const [query, setQuery] = useState("");
+  const [onlySelected, setOnlySelected] = useState(false);
   const { data, error, loading, refetch } = useApiResource(
     (signal) => api.getProjects(signal),
     `projects:${version}`,
@@ -58,14 +61,37 @@ export function NetworkView({
   }
 
   const projects = data.projects;
+  const selected = projects.find((project) => project.id === asProject);
+  const normalizedQuery = query.trim().toLowerCase();
+  const matchesQuery = (project) =>
+    !normalizedQuery ||
+    project.id.toLowerCase().includes(normalizedQuery) ||
+    project.name.toLowerCase().includes(normalizedQuery) ||
+    (project.maintainers ?? []).some((maintainer) =>
+      (maintainer.handle ?? "").toLowerCase().includes(normalizedQuery),
+    );
+
+  const matchingProjects = projects.filter(matchesQuery);
+  const matchingIds = new Set(matchingProjects.map((project) => project.id));
   const positions = layout(projects);
-  const edges = edgeList(projects).filter(
+  const declaredEdges = edgeList(projects).filter(
     (edge) => positions.has(edge.from) && positions.has(edge.to),
   );
+  const edges = declaredEdges.filter((edge) => {
+    if (!matchingIds.has(edge.from) || !matchingIds.has(edge.to)) return false;
+    if (
+      onlySelected &&
+      asProject &&
+      edge.from !== asProject &&
+      edge.to !== asProject
+    ) {
+      return false;
+    }
+    return true;
+  });
   const topEdges = [...edges]
     .sort((a, b) => b.weight - a.weight)
     .slice(0, 10);
-  const selected = projects.find((project) => project.id === asProject);
 
   return (
     <div className="min-w-0">
@@ -82,9 +108,71 @@ export function NetworkView({
 
       <Panel
         title="Project trust graph"
-        description="Node size is the number of contributors with pull requests. Edge width and opacity are the declared trust weight."
+        description="Node size is the number of contributors with pull requests. Edge width and opacity are the declared trust weight. Search and edge filtering only change what this view displays; the simulation is untouched."
         contentClassName="p-3 sm:p-4"
       >
+        <div className="mb-3 flex flex-wrap items-end gap-3 rounded-md border border-line bg-panel/60 px-3 py-2.5">
+          <div className="min-w-0 flex-1 sm:max-w-xs">
+            <label
+              htmlFor="network-search"
+              className="block text-[10px] uppercase tracking-wide text-muted"
+            >
+              Search projects
+            </label>
+            <input
+              id="network-search"
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="id, name, or maintainer"
+              data-testid="network-search"
+              className="mt-1 min-h-9 w-full rounded-md border border-line-strong bg-panel px-2 py-1.5 font-mono text-xs text-ink"
+            />
+          </div>
+
+          <label className="flex min-h-9 items-center gap-2 text-xs text-muted">
+            <input
+              type="checkbox"
+              checked={onlySelected}
+              onChange={(event) => setOnlySelected(event.target.checked)}
+              data-testid="network-only-selected"
+              style={{ accentColor: "var(--color-teal)" }}
+              className="h-4 w-4"
+            />
+            Only edges touching {selected?.id ?? "the selection"}
+          </label>
+
+          <span
+            role="status"
+            data-testid="network-count"
+            className="font-mono text-[10px] text-muted"
+          >
+            {matchingProjects.length} of {projects.length} projects ·{" "}
+            {edges.length} of {declaredEdges.length} edges
+          </span>
+
+          {(query || onlySelected) && (
+            <button
+              type="button"
+              onClick={() => {
+                setQuery("");
+                setOnlySelected(false);
+              }}
+              className="min-h-9 rounded-md border border-line-strong px-2.5 py-1.5 text-xs font-medium text-muted transition-colors hover:text-ink"
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
+
+        {matchingProjects.length === 0 ? (
+          <div className="rounded-md border border-line bg-charcoal/60 px-4 py-10 text-center">
+            <p className="text-sm text-ink">No projects match “{query.trim()}”.</p>
+            <p className="mt-1 text-xs text-muted">
+              Search by project id, project name, or maintainer handle.
+            </p>
+          </div>
+        ) : (
         <div className="rounded-md bg-charcoal/60 p-1">
           <svg
             viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
@@ -135,7 +223,7 @@ export function NetworkView({
             </g>
 
             <g>
-              {projects.map((project) => {
+              {matchingProjects.map((project) => {
                 const point = positions.get(project.id);
                 const radius = 7 + Math.min(6, project.counts.contributors);
                 const isSelected = project.id === asProject;
@@ -188,6 +276,7 @@ export function NetworkView({
             </g>
           </svg>
         </div>
+        )}
 
         <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted">
           <span>Arrows: declared trust direction</span>
@@ -202,16 +291,22 @@ export function NetworkView({
 
       <div className="mt-4 grid min-w-0 gap-4 lg:grid-cols-2">
         <Panel
-          title={`Projects (${projects.length})`}
+          title={`Projects (${matchingProjects.length}${normalizedQuery ? ` of ${projects.length}` : ""})`}
           description="Each project evaluates from its own trust list. Opening one does not change any data."
           contentClassName="p-0"
         >
           <ul className="max-h-80 divide-y divide-line overflow-y-auto scroll-pane">
-            {projects.map((project) => (
+            {matchingProjects.length === 0 && (
+              <li className="px-4 py-6 text-xs text-muted">
+                No projects match the current search.
+              </li>
+            )}
+            {matchingProjects.map((project) => (
               <li key={project.id}>
                 <button
                   type="button"
                   onClick={() => onOpenProject(project.id)}
+                  data-testid={`project-row-${project.id}`}
                   className={`flex min-h-11 w-full flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-left transition-colors hover:bg-raised ${
                     project.id === asProject ? "bg-teal/5" : ""
                   }`}

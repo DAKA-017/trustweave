@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useApiResource } from "@/hooks/useApiResource";
 import { api } from "@/lib/api";
 import { formatDate, shortHash } from "@/lib/format";
-import { PageHeader, Panel, Stat } from "@/components/ui";
+import { Button, PageHeader, Panel, Stat } from "@/components/ui";
 import { EmptyState, ErrorState, LoadingState } from "@/components/States";
 
 function statusOf(verification) {
@@ -17,7 +17,223 @@ function statusOf(verification) {
   return { label: "valid · active", tone: "text-teal" };
 }
 
-export function RecordsView({ version }) {
+const DEFAULT_REASONS = {
+  vouch: "newcomer_sponsor_vouch",
+  denounce: "repeated_low_quality_patch",
+  revoke: "corrected_evidence",
+};
+
+function RecordForm({ projects, defaultProjectId, onSigned }) {
+  const [type, setType] = useState("vouch");
+  const [issuerProjectId, setIssuerProjectId] = useState("");
+  const [subjectContributorId, setSubjectContributorId] = useState("c_new_good");
+  const [reasonCode, setReasonCode] = useState(DEFAULT_REASONS.vouch);
+  const [evidenceRef, setEvidenceRef] = useState("manually signed demo record");
+  const [subjectRecordId, setSubjectRecordId] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
+
+  const issuer = issuerProjectId || defaultProjectId || projects[0]?.id || "";
+  const revokeNeedsRecord = type === "revoke";
+  const canSubmit =
+    Boolean(issuer) &&
+    subjectContributorId.trim().length > 0 &&
+    reasonCode.trim().length > 0 &&
+    (!revokeNeedsRecord || subjectRecordId.trim().length > 0) &&
+    !busy;
+
+  function changeType(nextType) {
+    setType(nextType);
+    setResult(null);
+    setError(null);
+    if (Object.values(DEFAULT_REASONS).includes(reasonCode) || !reasonCode.trim()) {
+      setReasonCode(DEFAULT_REASONS[nextType]);
+    }
+  }
+
+  async function submit(event) {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+    setResult(null);
+    try {
+      const body = {
+        issuerProjectId: issuer,
+        subjectContributorId: subjectContributorId.trim(),
+        type,
+        reasonCode: reasonCode.trim(),
+        evidence: evidenceRef.trim()
+          ? [{ kind: "note", ref: evidenceRef.trim() }]
+          : [],
+      };
+      if (revokeNeedsRecord) body.subjectRecordId = subjectRecordId.trim();
+      const response = await api.postRecord(body);
+      setResult(response);
+      onSigned?.(response);
+    } catch (requestError) {
+      setError(requestError);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Panel
+      title="Sign a demo record"
+      description="Append a signed vouch, denouncement, or revocation to a project log. This mutates only the in-memory simulation; rebuild from the Simulator to reset."
+    >
+      <form onSubmit={submit} className="space-y-3">
+        <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <div>
+            <label
+              htmlFor="record-type"
+              className="block text-[10px] uppercase tracking-wide text-muted"
+            >
+              Record type
+            </label>
+            <select
+              id="record-type"
+              value={type}
+              onChange={(event) => changeType(event.target.value)}
+              data-testid="record-type"
+              className="mt-1 min-h-9 w-full rounded-md border border-line-strong bg-panel px-2 py-1.5 font-mono text-xs text-ink"
+            >
+              <option value="vouch">vouch</option>
+              <option value="denounce">denounce</option>
+              <option value="revoke">revoke</option>
+            </select>
+          </div>
+
+          <div>
+            <label
+              htmlFor="record-issuer"
+              className="block text-[10px] uppercase tracking-wide text-muted"
+            >
+              Issuer project
+            </label>
+            <select
+              id="record-issuer"
+              value={issuer}
+              onChange={(event) => setIssuerProjectId(event.target.value)}
+              data-testid="record-issuer"
+              className="mt-1 min-h-9 w-full rounded-md border border-line-strong bg-panel px-2 py-1.5 font-mono text-xs text-ink"
+            >
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.id} · {project.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label
+              htmlFor="record-subject"
+              className="block text-[10px] uppercase tracking-wide text-muted"
+            >
+              Contributor id
+            </label>
+            <input
+              id="record-subject"
+              value={subjectContributorId}
+              onChange={(event) => setSubjectContributorId(event.target.value)}
+              data-testid="record-subject"
+              placeholder="c_new_good"
+              className="mt-1 min-h-9 w-full rounded-md border border-line-strong bg-panel px-2 py-1.5 font-mono text-xs text-ink"
+            />
+          </div>
+
+          <div>
+            <label
+              htmlFor="record-reason"
+              className="block text-[10px] uppercase tracking-wide text-muted"
+            >
+              Reason code
+            </label>
+            <input
+              id="record-reason"
+              value={reasonCode}
+              onChange={(event) => setReasonCode(event.target.value)}
+              data-testid="record-reason"
+              className="mt-1 min-h-9 w-full rounded-md border border-line-strong bg-panel px-2 py-1.5 font-mono text-xs text-ink"
+            />
+          </div>
+
+          <div>
+            <label
+              htmlFor="record-evidence"
+              className="block text-[10px] uppercase tracking-wide text-muted"
+            >
+              Evidence note
+            </label>
+            <input
+              id="record-evidence"
+              value={evidenceRef}
+              onChange={(event) => setEvidenceRef(event.target.value)}
+              data-testid="record-evidence"
+              className="mt-1 min-h-9 w-full rounded-md border border-line-strong bg-panel px-2 py-1.5 font-mono text-xs text-ink"
+            />
+          </div>
+
+          {revokeNeedsRecord && (
+            <div>
+              <label
+                htmlFor="record-subject-record"
+                className="block text-[10px] uppercase tracking-wide text-muted"
+              >
+                Record to revoke
+              </label>
+              <input
+                id="record-subject-record"
+                value={subjectRecordId}
+                onChange={(event) => setSubjectRecordId(event.target.value)}
+                data-testid="record-subject-record"
+                placeholder="r_p10_1"
+                className="mt-1 min-h-9 w-full rounded-md border border-line-strong bg-panel px-2 py-1.5 font-mono text-xs text-ink"
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <Button type="submit" disabled={!canSubmit} data-testid="record-submit">
+            {busy ? "Signing…" : `Sign ${type}`}
+          </Button>
+          <p className="text-[10px] text-muted">
+            {revokeNeedsRecord
+              ? "A revocation must reference a record issued by the same project."
+              : "Denouncements need evidence; a single weak signal cannot flag an account."}
+          </p>
+        </div>
+
+        {result && (
+          <p
+            role="status"
+            data-testid="record-result"
+            className="break-words rounded border border-teal/40 bg-teal/5 px-3 py-2 font-mono text-[10px] text-teal"
+          >
+            Signed {result.record?.type} · {result.record?.id} · signature{" "}
+            {result.verification?.signatureValid ? "valid" : "invalid"} ·{" "}
+            {result.verification?.active ? "active" : "inactive"}
+          </p>
+        )}
+        {error && (
+          <p
+            role="alert"
+            data-testid="record-error"
+            className="rounded border border-danger/40 bg-danger/5 px-3 py-2 text-xs text-danger"
+          >
+            {error.message}
+            {error.code ? ` (${error.code})` : ""}
+          </p>
+        )}
+      </form>
+    </Panel>
+  );
+}
+
+export function RecordsView({ version, onRecordChange }) {
   const summaries = useApiResource(
     (signal) => api.getRecordSummaries(signal),
     `record-summaries:${version}`,
@@ -42,18 +258,7 @@ export function RecordsView({ version }) {
     `records:${effectiveProjectId}:${tamper}:${version}`,
   );
 
-  if (summaries.loading && !summaries.data) {
-    return <LoadingState label="Loading record logs" />;
-  }
-  if (summaries.error) {
-    return (
-      <ErrorState error={summaries.error} onRetry={summaries.refetch} />
-    );
-  }
-  if (records.error) {
-    return <ErrorState error={records.error} onRetry={records.refetch} />;
-  }
-
+  const summariesLoading = summaries.loading && !summaries.data;
   const log = records.data?.log;
   const counts = log?.counts;
 
@@ -64,6 +269,26 @@ export function RecordsView({ version }) {
         description="Each project keeps an append-only hash chain. Every record is signed with its issuer's Ed25519 key and verified again when another project pulls the log."
       />
 
+      <div className="mb-4">
+        <RecordForm
+          projects={summaries.data?.projects ?? []}
+          defaultProjectId={effectiveProjectId}
+          onSigned={(response) => {
+            const issuer = response?.record?.issuerProjectId;
+            if (issuer) setProjectId(issuer);
+            onRecordChange?.();
+          }}
+        />
+      </div>
+
+      {summariesLoading ? (
+        <LoadingState label="Loading record logs" />
+      ) : summaries.error ? (
+        <ErrorState error={summaries.error} onRetry={summaries.refetch} />
+      ) : records.error ? (
+        <ErrorState error={records.error} onRetry={records.refetch} />
+      ) : (
+        <>
       <div className="mb-4 flex flex-wrap items-end gap-3 rounded-lg border border-line bg-panel p-4">
         <div className="min-w-0">
           <label
@@ -228,6 +453,8 @@ export function RecordsView({ version }) {
         {records.data?.note ??
           "Verification status is computed from the log copy returned by this request."}
       </p>
+        </>
+      )}
     </div>
   );
 }

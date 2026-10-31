@@ -102,7 +102,9 @@ export default function Home() {
         <NewcomerView version={version} onSigned={handleRecordChange} />
       )}
 
-      {view === "records" && <RecordsView version={version} />}
+      {view === "records" && (
+        <RecordsView version={version} onRecordChange={handleRecordChange} />
+      )}
 
       {view === "simulator" && (
         <SimulatorView
