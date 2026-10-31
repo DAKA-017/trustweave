@@ -7,11 +7,24 @@ import { errorHandler, notFoundHandler } from './middleware/error-handler.js';
 export const app = express();
 app.disable('x-powered-by');
 
+function isAllowedOrigin(origin) {
+  if (!origin || origin === config.frontendOrigin) return true;
+  try {
+    const { protocol, hostname } = new URL(origin);
+    return (
+      protocol === 'https:' &&
+      hostname.startsWith('trustweave-') &&
+      hostname.endsWith('.vercel.app')
+    );
+  } catch {
+    return false;
+  }
+}
+
 app.use(
   cors({
     origin(origin, callback) {
-      if (!origin || origin === config.frontendOrigin) return callback(null, true);
-      return callback(null, false);
+      return callback(null, isAllowedOrigin(origin));
     },
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type'],

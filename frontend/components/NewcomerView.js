@@ -8,6 +8,7 @@ import { Button, PageHeader, Panel } from "@/components/ui";
 import { OutcomeBadge } from "@/components/OutcomeBadge";
 import { ReasonList } from "@/components/ReasonList";
 import { EmptyState, ErrorState, LoadingState } from "@/components/States";
+import snapshot from "@/lib/snapshot.json";
 
 function SponsorForm({ newcomer, options, signed, onSigned }) {
   const [selectedProjectId, setSelectedProjectId] = useState("");
@@ -95,10 +96,11 @@ export function NewcomerView({ version, onSigned }) {
   const { data, error, loading, refetch } = useApiResource(
     (signal) => api.getNewcomers(signal),
     `newcomers:${version}`,
+    version === 0 ? snapshot.newcomers : null,
   );
 
   if (loading && !data) return <LoadingState label="Loading the newcomer lane" />;
-  if (error) return <ErrorState error={error} onRetry={refetch} />;
+  if (error && !data) return <ErrorState error={error} onRetry={refetch} />;
 
   const newcomers = data?.newcomers ?? [];
   const sponsorOptions = data?.sponsorOptions ?? [];

@@ -8,6 +8,7 @@ import { Button, PageHeader, Panel, Stat } from "@/components/ui";
 import { OutcomeBadge } from "@/components/OutcomeBadge";
 import { ReasonList } from "@/components/ReasonList";
 import { EmptyState, ErrorState, LoadingState } from "@/components/States";
+import snapshot from "@/lib/snapshot.json";
 
 function verificationLabel(verification) {
   if (!verification) return { text: "unverified", tone: "text-amber" };
@@ -32,10 +33,14 @@ export function ContributorView({
   const projects = useApiResource(
     (signal) => api.getProjects(signal),
     `contributor-projects:${version}`,
+    version === 0 ? snapshot.projects : null,
   );
   const result = useApiResource(
     (signal) => api.getAssessment(contributorId, asProject, signal),
     `assessment:${contributorId}:${asProject}:${version}`,
+    version === 0 && contributorId === "c_disputed" && asProject === "p10"
+      ? snapshot.assessment
+      : null,
   );
 
   const [draft, setDraft] = useState({
@@ -48,7 +53,7 @@ export function ContributorView({
   if (result.loading && !result.data) {
     return <LoadingState label={`Assessing ${contributorId} as ${asProject}`} />;
   }
-  if (result.error) {
+  if (result.error && !result.data) {
     return <ErrorState error={result.error} onRetry={result.refetch} />;
   }
   if (!result.data) return <EmptyState title="No assessment returned" />;

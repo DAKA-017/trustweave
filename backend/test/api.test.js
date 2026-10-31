@@ -210,7 +210,7 @@ test('API errors use the documented shape', async () => {
   assert.equal(unknown.body.error.code, 'NOT_FOUND');
 });
 
-test('CORS is restricted to FRONTEND_ORIGIN', async () => {
+test('CORS is restricted to the configured origin and TrustWeave deployments', async () => {
   const allowed = await request(app)
     .get('/api/health')
     .set('Origin', config.frontendOrigin)
@@ -218,6 +218,15 @@ test('CORS is restricted to FRONTEND_ORIGIN', async () => {
   assert.equal(
     allowed.headers['access-control-allow-origin'],
     config.frontendOrigin,
+  );
+
+  const preview = await request(app)
+    .get('/api/health')
+    .set('Origin', 'https://trustweave-preview-team.vercel.app')
+    .expect(200);
+  assert.equal(
+    preview.headers['access-control-allow-origin'],
+    'https://trustweave-preview-team.vercel.app',
   );
 
   const blocked = await request(app)

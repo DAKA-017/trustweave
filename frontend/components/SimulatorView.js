@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { formatPercent, formatRate, humanize } from "@/lib/format";
 import { Button, PageHeader, Panel, Stat } from "@/components/ui";
 import { ErrorState, LoadingState } from "@/components/States";
+import snapshot from "@/lib/snapshot.json";
 
 const SIZES = [20, 25, 30, 35, 40, 45, 50];
 const CAMPAIGN_SIZES = [10, 11, 12, 13, 14, 15];
@@ -29,6 +30,7 @@ export function SimulatorView({ version, meta, onSimulated }) {
   const metrics = useApiResource(
     (signal) => api.getMetrics(signal),
     `metrics:${version}`,
+    version === 0 ? snapshot.metrics : null,
   );
 
   async function rerun(event) {
@@ -222,7 +224,7 @@ export function SimulatorView({ version, meta, onSimulated }) {
           >
             {metrics.loading && !metrics.data ? (
               <LoadingState label="Computing metrics" />
-            ) : metrics.error ? (
+            ) : metrics.error && !current ? (
               <ErrorState error={metrics.error} onRetry={metrics.refetch} />
             ) : current ? (
               <>

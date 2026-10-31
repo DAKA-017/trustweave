@@ -6,6 +6,7 @@ import { formatDate, humanize, signalLabel } from "@/lib/format";
 import { PageHeader, Panel, Stat } from "@/components/ui";
 import { OutcomeBadge } from "@/components/OutcomeBadge";
 import { EmptyState, ErrorState, LoadingState } from "@/components/States";
+import snapshot from "@/lib/snapshot.json";
 
 const TIMELINE_LIMIT = 120;
 
@@ -38,10 +39,11 @@ export function CampaignView({ version }) {
   const { data, error, loading, refetch } = useApiResource(
     (signal) => api.getCampaigns(signal),
     `campaigns:${version}`,
+    version === 0 ? snapshot.campaigns : null,
   );
 
   if (loading && !data) return <LoadingState label="Detecting coordinated behavior" />;
-  if (error) return <ErrorState error={error} onRetry={refetch} />;
+  if (error && !data) return <ErrorState error={error} onRetry={refetch} />;
 
   const campaigns = data?.campaigns ?? [];
 

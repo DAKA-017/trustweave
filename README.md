@@ -94,6 +94,7 @@ The Playwright config reuses already-running servers or starts the backend and f
 ## 3. Exact URLs
 
 - Dashboard: `http://localhost:3000/`
+- Direct views: `/project`, `/contributor`, `/campaigns`, `/newcomers`, `/records`, `/simulator`
 - Why-not-AI-text explainer: `http://localhost:3000/explainer`
 - API health: `http://localhost:5050/api/health`
 - Example assessment as p06: `http://localhost:5050/api/contributors/c_disputed/assessment?asProject=p06`
@@ -101,6 +102,8 @@ The Playwright config reuses already-running servers or starts the backend and f
 - Example tamper demo: `http://localhost:5050/api/records?projectId=p02&tamper=signature`
 
 ## 4. Demo walkthrough
+
+Every view is pre-rendered from an embedded seed-42 snapshot in `frontend/lib/snapshot.json`, so the first paint shows real projects, records and campaign evidence even while the API host is cold or unreachable. When the API answers, the view refreshes in the background; a failed refresh keeps the snapshot instead of replacing the page with a spinner. Each view also has its own URL, so it can be opened directly.
 
 1. **Network.** Open `http://localhost:3000/`. The graph shows every project's declared direct trust edges. Search by project id, name or maintainer handle, and tick **Only edges touching** to filter the graph to the selected project's relationships. Click the `spruce` node (`p06`) or use the project list. The badge changes to “evaluating as p06”, and the Project view opens. Switch “Evaluate as” between `p06`, `p08` and `p10`; the contributor totals and outcomes change because each project reads a different slice of the network.
 2. **Project view.** As `p10 · Jade Workers`, 21 contributors are assessed from p10's own trust list. The twelve `nova-build-*` accounts are flagged, while `kai-ai-assisted` is under normal review. The reasons are ordered and linked to signed records or PR evidence.
@@ -309,7 +312,7 @@ Verified in this build:
 
 - **46 backend tests pass** (Node test runner + Supertest): signatures, tampering, hash chains, gossip, expiry/revocation, transitive decay, cycle safety, strongest path, cluster independence, denouncement safeguards, vouch caps, newcomer neutrality, campaign signals and clustering, determinism, size/seed validation, API error shapes, CORS, metrics.
 - **11 Playwright Chromium flows pass**: viewing as different projects; a contributor explanation; the campaign view; the newcomer lane plus signed sponsor vouch; both tamper modes; graph search, edge filtering and node navigation; signing and revoking a denouncement; a signed record surviving a page reload; a retryable error when the API is unreachable; phone-width overflow checks across all views; and rebuilding from a new seed plus multi-seed metrics.
-- Frontend ESLint passes; the production build generates `/` and `/explainer` as static pages.
+- Frontend ESLint passes; the production build generates all nine routes (`/`, `/project`, `/contributor`, `/campaigns`, `/newcomers`, `/records`, `/simulator`, `/explainer`, not-found) as static pages with real snapshot content in the HTML.
 - Responsive checks at 1440×1000 and 390×844 found no page-level horizontal overflow and no uncaught page errors across all eight views.
 
 ## 14. Why AI-text detection alone is insufficient
@@ -375,7 +378,7 @@ NEXT_PUBLIC_API_BASE_URL=https://trustweave-api-live.onrender.com/api
 
 ### 15.4 CORS
 
-Render's `FRONTEND_ORIGIN` is the exact Vercel production origin (`https://trustweave-taupe.vercel.app`, no trailing slash). Only that origin is allowed; Vercel preview deployments use different origins and are rejected by design. To test a preview, temporarily change `FRONTEND_ORIGIN` and redeploy.
+Render's `FRONTEND_ORIGIN` is the exact Vercel production origin (`https://trustweave-taupe.vercel.app`, no trailing slash). Origins matching `https://trustweave-*.vercel.app` are also accepted so deployment-specific and preview URLs for this project can reach the API; every other origin is rejected. To test an unrelated preview host, temporarily change `FRONTEND_ORIGIN` and redeploy.
 
 ### 15.5 Verify a deployment
 
@@ -391,9 +394,10 @@ The second response includes `Access-Control-Allow-Origin: https://trustweave-ta
 ### 15.6 Deployment limitations
 
 - **In-memory state.** Every restart or redeploy rebuilds the seed-42 world; `POST /api/simulate` also resets it. There is no database, so two visitors share and can change the same simulated world.
-- **Free-tier cold starts.** Render's free web service sleeps after inactivity; the first request can take 30–60 seconds. The dashboard shows a retryable connection error.
+- **Free-tier cold starts.** Render's free web service sleeps after inactivity; the first request can take 30–60 seconds. The static page already shows the seed-42 snapshot while that request runs, and a retryable connection notice appears if it fails.
+- **Snapshot age.** The embedded snapshot is a real seed-42 capture, not a live mirror. It is refreshed by the API when reachable; after a simulator rebuild or new signed records, reload the page to refetch. Regenerate `frontend/lib/snapshot.json` from a reset seed-42 world when the default simulation changes.
 - **HTTPS on both sides.** Serving one side over HTTP causes mixed-content or CORS failures.
-- **Single CORS origin.** Production and preview URLs are different origins; only the configured one is accepted.
+- **Deployment origins.** Production and project preview URLs are different origins. Only the configured origin and `trustweave-*.vercel.app` hosts are accepted.
 - **Still read-only.** The deployed app never contacts a real repository.
 
 ## 16. Known limitations and out of scope

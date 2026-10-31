@@ -6,16 +6,19 @@ import { useCallback, useEffect, useRef, useState } from "react";
  * Loads a resource and aborts the in-flight request whenever the key changes or
  * the component unmounts. A pending key is reported as loading even before the
  * request starts, so stale data never masquerades as the current view.
+ *
+ * `initialData` seeds the matching key so a static build can paint real content
+ * before the API responds. A failed background refresh keeps that snapshot.
  */
-export function useApiResource(loader, key = "") {
+export function useApiResource(loader, key = "", initialData = null) {
   const loaderRef = useRef(loader);
   const [nonce, setNonce] = useState(0);
-  const [result, setResult] = useState({
-    key: null,
-    nonce: null,
-    data: null,
+  const [result, setResult] = useState(() => ({
+    key: initialData == null ? null : key,
+    nonce: initialData == null ? null : 0,
+    data: initialData ?? null,
     error: null,
-  });
+  }));
 
   useEffect(() => {
     loaderRef.current = loader;
@@ -32,7 +35,12 @@ export function useApiResource(loader, key = "") {
       })
       .catch((error) => {
         if (!active || error.name === "AbortError") return;
-        setResult({ key, nonce, data: null, error });
+        setResult((previous) => ({
+          key,
+          nonce,
+          data: previous.key === key ? previous.data : null,
+          error,
+        }));
       });
 
     return () => {

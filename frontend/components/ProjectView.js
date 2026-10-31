@@ -7,6 +7,7 @@ import { Button, PageHeader, Panel, Stat } from "@/components/ui";
 import { OutcomeBadge } from "@/components/OutcomeBadge";
 import { ReasonList } from "@/components/ReasonList";
 import { EmptyState, ErrorState, LoadingState } from "@/components/States";
+import snapshot from "@/lib/snapshot.json";
 
 export function ProjectView({
   asProject,
@@ -17,16 +18,18 @@ export function ProjectView({
   const projects = useApiResource(
     (signal) => api.getProjects(signal),
     `project-list:${version}`,
+    version === 0 ? snapshot.projects : null,
   );
   const view = useApiResource(
     (signal) => api.getProjectView(asProject, signal),
     `project-view:${asProject}:${version}`,
+    version === 0 && asProject === "p10" ? snapshot.projectView : null,
   );
 
   if (view.loading && !view.data) {
     return <LoadingState label={`Assessing as ${asProject}`} />;
   }
-  if (view.error) {
+  if (view.error && !view.data) {
     return <ErrorState error={view.error} onRetry={view.refetch} />;
   }
   if (!view.data) {

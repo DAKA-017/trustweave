@@ -9,6 +9,7 @@ import { PageHeader, Panel, Stat } from "@/components/ui";
 import { OutcomeBadge } from "@/components/OutcomeBadge";
 import { ReasonList } from "@/components/ReasonList";
 import { ErrorState, LoadingState } from "@/components/States";
+import snapshot from "@/lib/snapshot.json";
 
 function Example({ example, tone }) {
   const behavior = example.behavior;
@@ -69,6 +70,7 @@ export function ExplainerView() {
   const { data, error, loading, refetch } = useApiResource(
     (signal) => api.getExplainer(signal),
     "explainer",
+    snapshot.explainer,
   );
 
   return (
@@ -97,7 +99,7 @@ export function ExplainerView() {
 
         {loading && !data ? (
           <LoadingState label="Loading the explainer examples" />
-        ) : error ? (
+        ) : error && !data ? (
           <ErrorState error={error} onRetry={refetch} />
         ) : data ? (
           <>

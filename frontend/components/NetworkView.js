@@ -5,6 +5,7 @@ import { useApiResource } from "@/hooks/useApiResource";
 import { api } from "@/lib/api";
 import { PageHeader, Panel, Stat } from "@/components/ui";
 import { EmptyState, ErrorState, LoadingState } from "@/components/States";
+import snapshot from "@/lib/snapshot.json";
 
 const WIDTH = 840;
 const HEIGHT = 560;
@@ -18,8 +19,8 @@ function layout(projects) {
   projects.forEach((project, index) => {
     const angle = -Math.PI / 2 + (index * 2 * Math.PI) / projects.length;
     positions.set(project.id, {
-      x: CENTER_X + RADIUS_X * Math.cos(angle),
-      y: CENTER_Y + RADIUS_Y * Math.sin(angle),
+      x: Number((CENTER_X + RADIUS_X * Math.cos(angle)).toFixed(2)),
+      y: Number((CENTER_Y + RADIUS_Y * Math.sin(angle)).toFixed(2)),
     });
   });
   return positions;
@@ -52,10 +53,11 @@ export function NetworkView({
   const { data, error, loading, refetch } = useApiResource(
     (signal) => api.getProjects(signal),
     `projects:${version}`,
+    version === 0 ? snapshot.projects : null,
   );
 
   if (loading && !data) return <LoadingState label="Loading the trust network" />;
-  if (error) return <ErrorState error={error} onRetry={refetch} />;
+  if (error && !data) return <ErrorState error={error} onRetry={refetch} />;
   if (!data?.projects?.length) {
     return <EmptyState title="No projects in this simulation" />;
   }
@@ -247,8 +249,7 @@ export function NetworkView({
                     }}
                   >
                     <title>
-                      {project.name} ({project.id}) · click to evaluate as this
-                      project
+                      {`${project.name} (${project.id}) · click to evaluate as this project`}
                     </title>
                     <circle
                       cx={point.x}

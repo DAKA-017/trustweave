@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { formatDate, shortHash } from "@/lib/format";
 import { Button, PageHeader, Panel, Stat } from "@/components/ui";
 import { EmptyState, ErrorState, LoadingState } from "@/components/States";
+import snapshot from "@/lib/snapshot.json";
 
 function statusOf(verification) {
   if (!verification) return { label: "unverified", tone: "text-amber" };
@@ -237,6 +238,7 @@ export function RecordsView({ version, onRecordChange }) {
   const summaries = useApiResource(
     (signal) => api.getRecordSummaries(signal),
     `record-summaries:${version}`,
+    version === 0 ? snapshot.recordSummaries : null,
   );
   const [projectId, setProjectId] = useState("");
   const [tamper, setTamper] = useState("none");
@@ -256,6 +258,9 @@ export function RecordsView({ version, onRecordChange }) {
         ? api.getRecords(effectiveProjectId, tamper, signal)
         : Promise.resolve(null),
     `records:${effectiveProjectId}:${tamper}:${version}`,
+    version === 0 && effectiveProjectId === "p02"
+      ? snapshot.records[tamper]
+      : null,
   );
 
   const summariesLoading = summaries.loading && !summaries.data;
@@ -283,9 +288,9 @@ export function RecordsView({ version, onRecordChange }) {
 
       {summariesLoading ? (
         <LoadingState label="Loading record logs" />
-      ) : summaries.error ? (
+      ) : summaries.error && !summaries.data ? (
         <ErrorState error={summaries.error} onRetry={summaries.refetch} />
-      ) : records.error ? (
+      ) : records.error && !records.data ? (
         <ErrorState error={records.error} onRetry={records.refetch} />
       ) : (
         <>
