@@ -130,7 +130,7 @@ async function simulatorFingerprint() {
   const [health, campaigns, records] = await Promise.all([
     api.getHealth(),
     api.getCampaigns(),
-    api.getRecords("p01", "none"),
+    api.getRecords("p02", "none"),
   ]);
   return {
     counts: health.counts,
@@ -207,7 +207,7 @@ async function checkSimulator() {
       "Two rebuilds of the same seed produced different counts, members, signals or record hashes.",
     );
 
-    detail = `Rebuilt seed ${BASE_SEED} → ${CAMPAIGN_SEED}: ${changed.simulation.counts.pullRequests} PRs regenerated and the detector returned ${members} members. A second independent rebuild produced identical counts, ${second.members.length} member ids, ${second.signals.length} signal types and ${second.hashes.length} byte-identical p01 record hashes.`;
+    detail = `Rebuilt seed ${BASE_SEED} → ${CAMPAIGN_SEED}: ${changed.simulation.counts.pullRequests} PRs regenerated and the detector returned ${members} members. A second independent rebuild produced identical counts, ${second.members.length} member ids, ${second.signals.length} signal types and ${second.hashes.length} byte-identical p02 record hashes.`;
   } finally {
     await api.simulate({
       seed: BASE_SEED,

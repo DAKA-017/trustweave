@@ -324,7 +324,7 @@ test('POST /api/simulate returns identical results for the same seed', async () 
     const [health, campaigns, records] = await Promise.all([
       request(app).get('/api/health').expect(200),
       request(app).get('/api/campaigns').expect(200),
-      request(app).get('/api/records').query({ projectId: 'p01' }).expect(200),
+      request(app).get('/api/records').query({ projectId: 'p02' }).expect(200),
     ]);
     return {
       counts: health.body.counts,
@@ -344,7 +344,7 @@ test('POST /api/simulate returns identical results for the same seed', async () 
       .expect(200);
     const first = await fingerprint();
     assert.equal(first.members[0].length, 10);
-    assert.ok(first.hashes.length > 0);
+    assert.ok(first.hashes.length > 10);
 
     await request(app)
       .post('/api/simulate')
