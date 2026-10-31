@@ -6,6 +6,7 @@ export const VIEW_PATHS = {
   newcomers: "/newcomers",
   records: "/records",
   simulator: "/simulator",
+  verify: "/verify",
 };
 
 export function projectPath(projectId) {

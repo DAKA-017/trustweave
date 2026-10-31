@@ -94,7 +94,7 @@ The Playwright config reuses already-running servers or starts the backend and f
 ## 3. Exact URLs
 
 - Dashboard: `http://localhost:3000/`
-- Direct views: `/network`, `/project`, `/contributor`, `/campaigns`, `/newcomers`, `/records`, `/simulator`
+- Direct views: `/network`, `/project`, `/contributor`, `/campaigns`, `/newcomers`, `/records`, `/simulator`, `/verify`
 - Deep links: `/project?as=p06`, `/contributor?as=p02&id=c_disputed`, `/records?project=p03`, `/records?project=p07&tamper=signature`
 - Why-not-AI-text explainer: `http://localhost:3000/explainer`
 - API health: `http://localhost:5050/api/health`
@@ -140,8 +140,8 @@ backend/
   utils/                 canonical JSON, Ed25519, SHA-256, PRNG, similarity
   test/                  Node test runner + Supertest
 frontend/
-  app/                   App Router; dashboard and explainer pages
-  components/            nine views and shared UI/state components
+  app/                   App Router; dashboard, verify and explainer pages
+  components/            ten views and shared UI/state components
   hooks/useApiResource.js abortable data loading with stale-key protection
   lib/api.js             typed-ish API client and error mapping
   lib/format.js          date, rate, hash and outcome formatting
@@ -314,9 +314,10 @@ cd frontend && npx eslint . && npm run build && npm run test:e2e
 Verified in this build:
 
 - **46 backend tests pass** (Node test runner + Supertest): signatures, tampering, hash chains, gossip, expiry/revocation, transitive decay, cycle safety, strongest path, cluster independence, denouncement safeguards, vouch caps, newcomer neutrality, campaign signals and clustering, determinism, size/seed validation, API error shapes, CORS, metrics.
-- **12 Playwright Chromium flows pass**: viewing as different projects (including a URL change and a reload that keeps the same project); a contributor explanation; the campaign view; the newcomer lane plus signed sponsor vouch; both tamper modes with both record types visible; graph search, edge filtering and node navigation; signing and revoking a denouncement; a signed record surviving a page reload; a retryable error when the API is unreachable; phone-width overflow checks across all views; direct-URL deep links for every view; and rebuilding from a new seed plus multi-seed metrics.
-- Frontend ESLint passes; the production build generates all ten routes (`/`, `/network`, `/project`, `/contributor`, `/campaigns`, `/newcomers`, `/records`, `/simulator`, `/explainer`, not-found) as static pages with real snapshot content in the HTML.
-- Responsive checks at 1440×1000 and 390×844 found no page-level horizontal overflow and no uncaught page errors across all nine views.
+- **13 Playwright Chromium flows pass**: viewing as different projects (including a URL change and a reload that keeps the same project); a contributor explanation; the campaign view; the newcomer lane plus signed sponsor vouch; both tamper modes with both record types visible; graph search, edge filtering and node navigation; signing and revoking a denouncement; a signed record surviving a page reload; a retryable error when the API is unreachable; phone-width overflow checks across all views; direct-URL deep links for every view; rebuilding from a new seed plus multi-seed metrics; and the `/verify` page reaching 9/9 live checks.
+- The `/verify` page executes its checks in the browser against the running API, so the results are not stored fixtures. It signs one vouch in project p08, rebuilds seed 7 with 10 campaign members before restoring seed 42 with 12, and reloads once on the first visit to prove the signed record is still present afterwards. Opening it is the quickest way to audit the demo.
+- Frontend ESLint passes; the production build generates all eleven routes (`/`, `/network`, `/project`, `/contributor`, `/campaigns`, `/newcomers`, `/records`, `/simulator`, `/verify`, `/explainer`, not-found) as static pages with real snapshot content in the HTML.
+- Responsive checks at 1440×1000 and 390×844 found no page-level horizontal overflow and no uncaught page errors across all ten views.
 
 ## 14. Why AI-text detection alone is insufficient
 

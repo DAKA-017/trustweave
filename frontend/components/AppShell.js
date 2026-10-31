@@ -7,6 +7,7 @@ import {
   Network,
   Radar,
   ScrollText,
+  ShieldCheck,
   SlidersHorizontal,
   Sprout,
   UserSearch,
@@ -21,6 +22,7 @@ const NAV_ITEMS = [
   { id: "newcomers", label: "Newcomers", icon: Sprout },
   { id: "records", label: "Records", icon: ScrollText },
   { id: "simulator", label: "Simulator", icon: SlidersHorizontal },
+  { id: "verify", label: "Verify", icon: ShieldCheck },
 ];
 
 function BrandMark() {

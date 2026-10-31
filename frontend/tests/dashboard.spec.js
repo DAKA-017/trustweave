@@ -403,3 +403,35 @@ test("rebuilds the simulation from a new seed and measures across seeds", async 
   await expect(page.getByText("Max newcomer false flags")).toBeVisible();
   await expect(page.getByText("seed 2026")).toBeVisible();
 });
+
+test("runs every live verification check on the page", async ({ page }) => {
+  await page.goto("/verify");
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Live verification" }),
+  ).toBeVisible();
+
+  await expect(page.getByTestId("verify-score")).toHaveText("9 / 9 passed", {
+    timeout: 60000,
+  });
+
+  for (const id of [
+    "persist",
+    "load",
+    "graph",
+    "simulator",
+    "campaign",
+    "newcomer",
+    "records",
+    "tamper",
+    "sign",
+  ]) {
+    await expect(page.getByTestId(`verify-status-${id}`)).toHaveAttribute(
+      "data-status",
+      "pass",
+    );
+  }
+
+  await expect(
+    page.getByTestId("verify-detail-persist"),
+  ).toContainText("after");
+});

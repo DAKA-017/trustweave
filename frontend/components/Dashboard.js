@@ -16,6 +16,7 @@ import { NewcomerView } from "@/components/NewcomerView";
 import { ProjectView } from "@/components/ProjectView";
 import { RecordsView } from "@/components/RecordsView";
 import { SimulatorView } from "@/components/SimulatorView";
+import { VerifyView } from "@/components/VerifyView";
 import { useApiResource } from "@/hooks/useApiResource";
 import { api } from "@/lib/api";
 import { contributorPath, projectPath, recordsPath } from "@/lib/routes";
@@ -219,6 +220,8 @@ export function Dashboard({ initialView = "network" }) {
           onSimulated={handleSimulated}
         />
       )}
+
+      {initialView === "verify" && <VerifyView />}
     </AppShell>
   );
 }
