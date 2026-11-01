@@ -145,6 +145,7 @@ export function Dashboard({ initialView = "network" }) {
       contributorId={contributorId}
       hydrated={hydrated}
       onNavigate={handleNavigate}
+      onOpenProject={openProject}
     >
       {healthError && (
         <div

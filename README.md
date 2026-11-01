@@ -4,24 +4,27 @@ A decentralized trust network for open source contributions, built as a determin
 
 TrustWeave has **no central authority and no global contributor score**. Every answer is computed *as a specific project*, from the signed records that project chooses to read, weighted by that project's own trust list. A contributor can be `caution` for one project and `normal_review` for another at the same moment.
 
-> **Simulation notice:** all projects, contributors, pull requests, keys, records and ground-truth labels are simulated in memory. The application is read-only with respect to the outside world. It does not contact, read from, or post to any real repository. No AI-text detector is used anywhere.
+> **Simulation notice:** all projects, contributors, pull requests, keys, records and ground-truth labels are simulated in memory. The application is read-only with respect to real repositories and does not contact, read from, or post to one. When an embedding key is configured, only simulated PR text is sent to the embeddings provider for the optional semantic-cluster view. No AI-text detector or authorship classifier is used anywhere.
 
 ## At a glance
 
 | Item | Value |
 | --- | --- |
-| Live dashboard | https://trustweave-taupe.vercel.app/ |
+| Live site | https://trustweave-taupe.vercel.app/ |
+| Live demo dashboard | https://trustweave-taupe.vercel.app/network |
 | Live explainer page | https://trustweave-taupe.vercel.app/explainer |
 | Live API base | https://trustweave-api-live.onrender.com/api |
 | Source | https://github.com/DAKA-017/trustweave |
-| Local dashboard | `http://localhost:3000/` |
+| Local site | `http://localhost:3000/` |
+| Local demo dashboard | `http://localhost:3000/network` |
 | Local explainer page | `http://localhost:3000/explainer` |
 | Local API base | `http://localhost:5050/api` |
 | Local health check | `http://localhost:5050/api/health` |
 | Backend | Node.js, Express 4 (ESM), Zod, Node `crypto` |
 | Frontend | Next.js 16 App Router, React 19, Tailwind CSS 4, lucide-react |
 | Storage | In-memory per visitor session; the default world is stateless and read-only. Restarting the backend clears sandboxes |
-| Credentials | No AI or GitHub credentials; no login; no database |
+| Credentials | Optional backend-only OpenAI key for semantic clusters; no GitHub credentials; no login; no database |
+| Semantic clusters | Optional embedding-based cross-project PR clustering; disabled and clearly labeled when no key is configured |
 | Verification | 12 backend-only checks: `npm run verify` (CLI), the verifier agent, and read-only `/api/verify/*` routes |
 | Reports | `backend/reports/verification-latest.json` and `.md` (git-ignored) |
 | Installable app | PWA (manifest + app-shell service worker) and an Electron wrapper (`npm run app`) |
@@ -65,11 +68,20 @@ SIM_SEED=42
 VERIFY_ON_START=true
 VERIFY_INTERVAL_MINUTES=30
 VERIFY_TOKEN=
+# Optional. Leave empty to disable semantic clusters.
+OPENAI_API_KEY=
+OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+SEMANTIC_SIMILARITY_THRESHOLD=0.86
+SEMANTIC_MIN_PROJECTS=3
+SEMANTIC_MIN_MEMBERS=3
+SEMANTIC_MAX_CLUSTERS=8
 ```
 
 The backend exposes `http://localhost:5050/api/health`. Port 5000 is occupied by macOS ControlCenter (AirPlay Receiver) on the machine this was built on, so the demo uses **5050**. If port 5000 is free for you, you may switch `PORT` to 5000, but you must then also change the frontend API URL below and restart both processes. `FRONTEND_ORIGIN` must remain the exact origin of the dashboard because CORS is restricted to it.
 
 `VERIFY_ON_START` runs the 12 checks once when the server boots and prints the table. `VERIFY_INTERVAL_MINUTES` controls the background verifier agent (`0` disables it). `VERIFY_TOKEN` is empty by default, which keeps `POST /api/verify/run` closed with `403`; setting a non-empty value allows tooling to trigger a run by sending it in the `X-Verify-Token` header. The token is backend-only and must never appear in the frontend.
+
+`OPENAI_API_KEY` is optional and enables the additive semantic-cluster analysis described in §9.1. It must exist only in this backend env file or the backend platform environment — never in `frontend/.env`, a `NEXT_PUBLIC_*` variable, source code or chat. Without it, `/api/semantic-clusters` reports `enabled: false` and the Campaigns page shows an honest disabled state; campaign detection and metrics are unaffected. `OPENAI_BASE_URL` can point at an OpenAI-compatible embeddings endpoint; `SEMANTIC_*` values bound the cost and noise of the analysis (`SEMANTIC_BATCH_SIZE` and `SEMANTIC_TIMEOUT_MS` default to 64 and 20000).
 
 ### Verification (backend only, no page)
 
@@ -109,9 +121,9 @@ Create `frontend/.env` with exactly:
 NEXT_PUBLIC_API_BASE_URL=http://localhost:5050/api
 ```
 
-Open `http://localhost:3000/`. The frontend refuses to silently talk to a different port: if the API is unreachable it shows a retryable connection error.
+Open `http://localhost:3000/` for the public landing page, or `http://localhost:3000/network` for the dashboard. The frontend refuses to silently talk to a different port: if the API is unreachable it shows a retryable connection error.
 
-In a production build (`npm run build && npm start`), the dashboard is an installable PWA: `/manifest.webmanifest` declares standalone display and original maskable icons, `/sw.js` caches only the app shell (never `/api/` responses, assessments or records), and `/offline` is the fallback for navigations that are not cached. Chromium/Edge show an **Install app** button via `beforeinstallprompt`; iPadOS/iOS Safari shows an “Add to Home Screen” hint. Service worker registration is disabled in `next dev` to avoid stale development caches.
+In a production build (`npm run build && npm start`), the app is installable as a PWA: `/manifest.webmanifest` declares standalone display, original maskable icons and `start_url: "/network"` so an installed app opens the demo; `/sw.js` caches only the app shell (the landing page, `/network`, and static assets — never `/api/` responses, assessments or records); and `/offline` is the fallback for navigations that are not cached. Chromium/Edge show an **Install app** button via `beforeinstallprompt`; iPadOS/iOS Safari shows an “Add to Home Screen” hint. Service worker registration is disabled in `next dev` to avoid stale development caches.
 
 ### Installable app and desktop wrapper
 
@@ -131,7 +143,7 @@ The Electron wrapper in `desktop/main.js` picks two free loopback ports, starts 
 
 ```bash
 cd frontend
-npm run test:e2e    # dashboard flows (backend + next dev)
+npm run test:e2e    # landing + dashboard flows (backend + next dev)
 npm run test:pwa    # production-build PWA checks on http://127.0.0.1:3100
 ```
 
@@ -139,7 +151,8 @@ The Playwright config reuses already-running servers or starts the backend and f
 
 ## 3. Exact URLs
 
-- Dashboard: `http://localhost:3000/`
+- Public landing page: `http://localhost:3000/`
+- Dashboard: `http://localhost:3000/network`
 - Direct views: `/network`, `/project`, `/contributor`, `/campaigns`, `/newcomers`, `/records`, `/simulator`
 - PWA shell: `/manifest.webmanifest`, `/sw.js`, `/offline`, `/icons/*`
 - Backend verification: `/api/verify/latest`, `/api/verify/history` (and token-guarded `POST /api/verify/run`)
@@ -158,15 +171,15 @@ Every view is pre-rendered from an embedded seed-42 snapshot in `frontend/lib/sn
 
 Every view has a real URL, and every selection is stored in it. Clicking a graph node changes the address to `/project?as=p06`, so the back button, refresh, and shared links all keep the same view. Records accepts `?project=` and `?tamper=`, and Contributor accepts `?as=` and `?id=`.
 
-1. **Network.** Open `http://localhost:3000/`. The map shows the 24 strongest trust links by default so it stays readable; turn on **Show every link** for all 88 connections. **Find a project** by name, id or maintainer handle, and tick **Only links touching** to narrow the map to one project's relationships. Click the `spruce` circle (`p06`) or use the project list. The badge changes to “looking through p06”, and the Project view opens. Switch “Evaluate as” between `p06`, `p08` and `p10`; the contributor totals and outcomes change because each project reads a different slice of the network. A **Words made simple** panel defines trust link, vouch, denounce, newcomer and the other labels.
+1. **Landing page and Network.** Open `http://localhost:3000/` for the public page: a pointer-reactive constellation behind the hero, a live-health panel with animated counts, one real signed record with its signature/hash/chain checks, and three switchable examples — a disputed contributor, a neutral newcomer and a coordinated campaign — that animate in as you switch. Use **Open the interactive demo** or the header's **Open demo** button to reach `http://localhost:3000/network`. The map shows the 24 strongest trust links by default so it stays readable; turn on **Show every link** for all 88 connections. **Hover any circle** to dim the rest, trace its links with flowing teal dashes, and show a project card with its people, outgoing links and connected projects. **Find a project** by name, id or maintainer handle, and tick **Only links touching** to narrow the map to one project's relationships. Click the `spruce` circle (`p06`) or use the project list. The badge changes to “looking through p06”, and the Project view opens. Switch “Evaluate as” between `p06`, `p08` and `p10`; the contributor totals and outcomes change because each project reads a different slice of the network. Press **Jump to…** (⌘K / Ctrl+K) anywhere in the demo to search every view and project from the keyboard. A **Words made simple** panel defines trust link, vouch, denounce, newcomer and the other labels.
 2. **Project view.** As `p10 · Jade Workers`, 21 contributors are assessed from p10's own trust list. The twelve `nova-build-*` accounts are flagged, while `kai-ai-assisted` is under normal review. The reasons are ordered and linked to signed records or PR evidence.
 3. **Contributor explanation.** Open **Contributor**. `marco-disputed` is normal review as `p10` because p10 has no applicable signed record. Select `p06`: the outcome becomes **Caution** from a single evidence-backed denouncement issued by p07 (effective trust 0.9). Select `p08`: it returns to **Normal review** because p08 gives p07's record zero weight. Then enter `c_human_spam` and assess as `p10`: **Flagged** with near-duplicate content, burst timing, high volume/low merge and an evidence-backed denouncement.
-4. **Coordinated campaign.** Open **Campaigns**. `campaign_01` links 12 accounts across 24 projects with five independent signal types and high confidence. Each signal lists its member count, weight and PR/record references; each member lists the signals it triggered; the **Evidence and provenance** panel shows the detector inputs, exact thresholds and a 156-reference breakdown; and the timeline shows the burst. No campaign is reported without at least two signal types and two linked accounts. Then open **Simulator**, choose **Stealth campaign** and rebuild: the same ring spreads over days, rewords content near the 0.82 similarity threshold and merges some PRs, so the detector finds 9 of 12 active accounts and honestly lists the 3 quiet accounts and 3 sleepers it misses.
+4. **Coordinated campaign.** Open **Campaigns**. `campaign_01` links 12 accounts across 24 projects with five independent signal types and high confidence. Each signal lists its member count, weight and PR/record references; each member lists the signals it triggered; the **Evidence and provenance** panel shows the detector inputs, exact thresholds and a 156-reference breakdown; and the timeline shows the burst. No campaign is reported without at least two signal types and two linked accounts. Above the campaign, the **Semantic similarity clusters** panel either shows cross-project embedding clusters with cosine vs exact-word overlap, meaning-only pairs, representative PRs and campaign overlap, or states clearly that embeddings are not configured; it never substitutes canned clusters. Then open **Simulator**, choose **Stealth campaign** and rebuild: the same ring spreads over days, rewords content near the 0.82 similarity threshold and merges some PRs, so the detector finds 9 of 12 active accounts and honestly lists the 3 quiet accounts and 3 sleepers it misses.
 5. **Newcomer lane.** Open **Newcomers**. Twelve accounts are neutral. Accounts with submissions but no signed records say “No signed records yet. Treated as neutral.”; accounts with neither say “No history. Treated as neutral.” They receive starter-task suggestions, not blocks. Click a **Simulated sponsor vouch** button. The returned record is Ed25519-signed and verified; the success line shows its record id and active status.
 6. **Records and tamper demo.** Open **Records**. The page starts on `p07 · Teak Serialization`, whose log contains both a vouch and a denouncement; the type strip above the log shows the total vouches, denouncements and revocations across all projects, and each row shows `signature ok`, `hash intact` and `chain intact`. Use **Add a signed note** to append a signed `vouch`, `denounce` or `revoke`; the success line shows the record id, signature validity and active state, and the log switches to the signer. A revocation must reference a record issued by the same project, and the revoked entry then shows `valid · revoked`. Choose **Tamper signature**: the log becomes rejected and the modified entry is shown with `invalid_signature`. Choose **Break chain**: the middle entry is shown with `broken_chain`. The banner states that only a copy was modified; the stored log is unchanged. **Verified** restores the real log. Open `/records?project=p03` for a log of twelve vouches, or `/records?project=p02` for one of twenty-eight denouncements.
 7. **Simulator.** Open **Simulator**. Set seed `99`, projects `20`, campaign accounts `10`, and choose **Obvious campaign** or **Stealth campaign**, then click **Rebuild simulation**. The world is rebuilt deterministically inside your own sandbox; nobody else's view changes. **Measure across seeds** runs seeds 42, 7, 99, 123 and 2026 for both scenarios and reports precision, recall, newcomer false flags, variance and the exact ground-truth accounts each seed missed, with reasons.
 8. **Why not AI-text.** Open **Why not AI-text** in the sidebar or `http://localhost:3000/explainer`. The AI-assisted contributor and the human-written spammer are judged by the same behavioral rules; the AI-assisted contributor is under normal review and the spammer is flagged. The page states the simulation caveat and the false-positive risks of text-origin detection.
-9. **Live verification.** Open **Verify**. Twelve checks run in the browser against the live API and show PASS/FAIL with the actual evidence: data load, graph URL, bounded trust cycle, reproducible rebuild, campaign detection and provenance, newcomer neutrality, vouch/denounce verification, revocation/expiry, both tamper modes and record signing. The page signs one p08 vouch, rebuilds seed 7 twice, restores seed 42 and reloads once. All of this happens inside the visitor's own sandbox; the shared read-only default world is never modified. This is the fastest audit path.
+9. **Backend verification.** Run `npm run verify` in `backend/`, or read `GET /api/verify/latest` and `/api/verify/history`. The twelve checks run in isolated sandboxes on the server and write `backend/reports/verification-latest.json` and `.md`. The frontend never calls these routes and contains no verification code or check names; a backend test fails if either leaks into a frontend file.
 
 After a simulator change, rebuild seed `42`, size `30`, campaign `12` with the **Obvious campaign** scenario to return to the documented demo state.
 
@@ -183,6 +196,7 @@ backend/
     records.js           append-only per-project hash chains, signing, verification
     trust-engine.js      effective trust, independence, outcomes, reasons
     campaign-detector.js six behavioral signals and campaign clustering
+    semantic-clusters.js optional OpenAI embeddings, cosine clustering and cache
     simulator.js         deterministic seeded world and hard cases
     simulation-host.js   in-memory host used by requests
     metrics.js           precision/recall/newcomer/explanation metrics
@@ -191,8 +205,8 @@ backend/
   utils/                 canonical JSON, Ed25519, SHA-256, PRNG, similarity
   test/                  Node test runner + Supertest
 frontend/
-  app/                   App Router; dashboard, verify and explainer pages
-  components/            ten views and shared UI/state components
+  app/                   App Router; public landing page, dashboard, explainer and offline pages
+  components/            dashboard views, landing explorer/status, brand and install UI
   hooks/useApiResource.js abortable data loading with stale-key protection
   lib/api.js             typed-ish API client and error mapping
   lib/format.js          date, rate, hash and outcome formatting
@@ -298,7 +312,20 @@ Each campaign also carries a `provenance` block: detector id (`behavioral-signal
 
 The **stealth** simulator scenario uses these same thresholds and does not tune them. It spreads the ring over about twelve days (avoiding `burst_timing`), ages the accounts (avoiding `new_accounts_in_sync`), rewords some content so many pairs sit just below 0.82 while one group stays just above it (`near_duplicate_content` fires partially), merges a few PRs, and keeps three members quiet enough to produce no signal at all. The result is an intentionally partial detection: 9 of 12 active accounts caught and 3 quiet accounts plus 3 sleepers missed, reported per seed with a reason for each miss. The obvious scenario is unchanged.
 
-Simulated PR content is used for duplicate detection only. It is never inspected for AI authorship.
+Simulated PR content is used for duplicate and semantic-similarity detection only. It is never inspected for AI authorship.
+
+### 9.1 Semantic PR clusters (optional, embeddings)
+
+`GET /api/semantic-clusters` is an additive analysis on top of campaign detection; it does not change any detector threshold, campaign, metric or verification result. When an embedding key is configured, the backend:
+
+1. Collects the distinct simulated `contentSample` strings for every PR and embeds them in batches with OpenAI `text-embedding-3-small` (model, batch size and endpoint are configurable). Identical text is embedded once, so the campaign's repeated wording does not cost one call per copy.
+2. Compares every pair of PRs that target **different projects** with cosine similarity, plus four-word shingle overlap for the same pair as a lexical reference.
+3. Links pairs at or above `SEMANTIC_SIMILARITY_THRESHOLD` (default `0.86`), unions them into clusters, and keeps clusters with at least `SEMANTIC_MIN_PROJECTS` projects and `SEMANTIC_MIN_MEMBERS` PRs.
+4. Returns up to `SEMANTIC_MAX_CLUSTERS` clusters with project and contributor counts, mean/min/max cosine, mean/min/max lexical overlap, exactly how many pairs match by meaning without exact wording, byte-identical pair count, campaign overlap, representative snippets, common changed paths and a provenance block.
+
+One promise is cached per world configuration (`seed`, `size`, `campaignSize`, `scenario`) and shared by every sandbox with the same world, bounded to 24 entries, so a reload or a second visitor does not trigger another provider call. A failed provider call is evicted so Retry can succeed. Without a key the route returns `200` with `enabled: false`, the reason and an empty cluster list. With a key but an unavailable provider it returns `503 SEMANTIC_PROVIDER_UNAVAILABLE`. The key never reaches the browser, the build or the logs, and only simulated PR text is sent to the provider.
+
+This is investigative evidence, not proof. Ordinary PRs that share a project template can cluster, and content similarity does not establish authorship, intent, coordination or AI generation. A cluster is labeled with any detected campaign it overlaps, but it is never counted as a campaign on its own.
 
 ## 10. Seeded simulator
 
@@ -348,6 +375,7 @@ All responses are JSON. Request validation uses Zod. The JSON body limit is 64 k
 | GET | `/api/contributors/:id/assessment?asProject=...` | One explainable assessment |
 | GET | `/api/newcomers` | Neutral newcomer lane and sponsor options |
 | GET | `/api/campaigns` | Detected campaigns, signals, members, evidence and provenance |
+| GET | `/api/semantic-clusters` | Optional embedding-based cross-project clusters; `enabled: false` when `OPENAI_API_KEY` is unset |
 | GET | `/api/records` | Record project summaries |
 | GET | `/api/records?projectId=...&tamper=none\|signature\|chain` | Full log and verification/tamper demo |
 | POST | `/api/records` | Append a signed vouch, denounce or revoke to your sandbox; requires a session header |
@@ -391,12 +419,12 @@ cd frontend && npx eslint . && npm run build && npm run test:e2e && npm run test
 
 Verified in this build:
 
-- **68 backend tests pass** (Node test runner + Supertest): the original model, simulation, trust and campaign suites, plus backend verification coverage — all 12 checks pass in isolated sandboxes, identical seeds produce identical results, a broken signature and a broken hash chain each make the records check fail, verification routes stay read-only and the POST route stays closed without a token, two visitors' sandboxes never share writes, and a guard test fails if any frontend file imports/calls verification routes or names a check.
-- **12 Playwright Chromium flows pass** against the dashboard, unchanged from the prior build except that the old Verify-page flow was removed: view-as-project switching, contributor explanations, campaign evidence, newcomer vouching, tamper demos, graph interactions, revocation, persistence across reload, retryable API errors, phone-width overflow, deep links, and multi-seed rebuilds.
-- **3 production-build PWA checks pass** via `npm run test:pwa`: the manifest and every icon resolve with the right content type, the service worker registers and caches the app shell (with zero `/api/` entries), and an uncached navigation offline shows the `/offline` fallback.
+- **78 backend tests pass** (Node test runner + Supertest): the original model, simulation, trust and campaign suites, plus backend verification coverage — all 12 checks pass in isolated sandboxes, identical seeds produce identical results, a broken signature and a broken hash chain each make the records check fail, verification routes stay read-only and the POST route stays closed without a token, two visitors' sandboxes never share writes, and a guard test fails if any frontend file imports/calls verification routes or names a check. The 10 semantic tests use deterministic stub embedders and a mocked fetch: they cover cross-project clustering, the project/member filters, meaning-only vs lexical pairs, campaign overlap, batching and response ordering, safe provider errors, the disabled API state, one embedding call per cached world, and a retryable 503 that never leaks the key.
+- **20 Playwright Chromium flows pass**: the 13 dashboard checks (including the semantic-cluster panel in both its disabled and fixture-backed enabled states), two interaction checks (hover tracing on the network map and the keyboard quick jump), and five public landing flows — the hero reaching `/network` with a live status, switching between the three real example assessments, falling back to the snapshot with a retry when the API is unreachable, serving the Open Graph card, sitemap, robots file and branded 404, and zero horizontal overflow at 390×844.
+- **3 production-build PWA checks pass** via `npm run test:pwa`: the manifest and every icon resolve with the right content type and `start_url` is `/network`, the service worker registers and caches the app shell including `/` and `/network` (with zero `/api/` entries), and an uncached navigation offline shows the `/offline` fallback.
 - **`npm run verify` reports 12/12** and exits 0; the startup run prints the same table. The CLI, the startup run, the agent and the token-guarded route all write `backend/reports/verification-latest.json` and `.md`.
-- **Electron wrapper verified twice**: once from the source tree and once from the unpacked packaged app, both on free ports, both reaching the dashboard with live API data, printing 12/12, and releasing their ports on quit.
-- Frontend ESLint passes; the production build generates all static routes including `/manifest.webmanifest` and `/offline`. Screenshots at 1440×1000 and 390×844 show no page-level horizontal overflow or uncaught errors on the Network view; the phone-width Playwright test covers all views.
+- **Electron wrapper smoke passes on the current source build**: the window opens `http://127.0.0.1:<port>/network`, the startup verifier prints 12/12, and both child processes stop on quit. The unpacked packaged app was smoke-tested on the previous build; rebuild it with `npm run package:app` to package the landing page.
+- Frontend ESLint passes; the production build generates all static routes including `/`, `/network`, `/manifest.webmanifest`, `/offline`, `/robots.txt` and `/opengraph-image`. Screenshots of the landing page at 1440×1000 and 390×844 show no page-level horizontal overflow or uncaught errors, and the phone-width Playwright tests cover the landing page and every dashboard view.
 
 ### Checklist-to-evidence map
 
@@ -410,7 +438,8 @@ Verified in this build:
 | P1 | Campaign evidence and provenance | Every campaign exposes `provenance` (inputs, thresholds, evidence breakdown, member signal types); the Campaigns page renders it and the `provenance` check validates it. |
 | P1 | Reproducible simulator | `simulation.test.js` compares two builds; the API test rebuilds seed 7 twice and compares counts, members, signals and record hashes; the `simulator` check repeats that in a sandbox. |
 | P1 | Installable app | `npm run test:pwa` (manifest, service worker scope, shell-only cache, offline fallback) and the Electron smoke run against both the dev tree and the packaged app. |
-| P2 | Dashboard polish and demo | Real URLs, snapshot-first paint, responsive Playwright checks, campaign provenance panel, and the §4 walkthrough. |
+| P2 | Semantic cross-project clusters | `backend/test/semantic-clusters.test.js` proves cosine clustering, cross-project-only linking, project/member filters and meaning-only pairs with stub vectors; `semantic-api.test.js` proves the disabled state, campaign overlap, one cached embedding run, safe provider errors and a retryable `503`; the Campaigns Playwright flow renders both states. |
+| P2 | Dashboard polish and demo | Public landing page at `/` with a motion layer (pointer constellation, scroll reveals, animated status counts, spotlight cards), a live status panel, three switchable real examples, a generated Open Graph card, canonical/robots/sitemap metadata and a branded 404; the dashboard at `/network` with hover tracing, a project tooltip, ⌘K quick jump, skip-to-content links, real URLs, snapshot-first paint, responsive Playwright checks, campaign provenance panel, and the §4 walkthrough. |
 
 ## 14. Why AI-text detection alone is insufficient
 
@@ -419,6 +448,7 @@ Verified in this build:
 - Spam is a **behavior pattern**: volume, timing, cross-project similarity, account age, network structure and maintainer outcomes.
 - TrustWeave never inspects text origin. The same behavioral rules run on both explainer examples, and the outcomes, reasons and references are shown side by side.
 - The “human-written spam” label comes from simulator ground truth. The engine itself sees only PR behavior, signed records and network signals.
+- Embedding clusters are a similarity signal, not an authorship classifier. They can group ordinary shared templates as well as campaign wording, so they are shown beside the campaign analysis and never turn into a campaign on their own.
 
 ## 15. Deployment (Vercel + Render)
 
@@ -431,7 +461,7 @@ The app is deployed and publicly reachable:
 | Health | https://trustweave-api-live.onrender.com/api/health | | | | |
 | Source | https://github.com/DAKA-017/trustweave | GitHub (public) | | | |
 
-No database, Docker, login or credentials are needed. The included `render.yaml` documents the backend service.
+No database, Docker or login is needed. All credentials are optional and backend-only: an embeddings key enables semantic clusters, and the demo runs fully without one. The included `render.yaml` documents the backend service.
 
 The live deployment was verified: the dashboard loads `/api/projects` through CORS, every view renders, `POST /api/simulate` rebuilds the world (tested with seed 99 and then reset to seed 42), and `OPTIONS` preflight returns `Access-Control-Allow-Origin` for the exact Vercel origin only.
 
@@ -458,6 +488,7 @@ The live service was created non-interactively from the same repository:
 - Root directory `backend`, runtime Node, plan free, region `oregon`.
 - Build `npm ci --omit=dev`, start `npm start`, health check `/api/health`.
 - Environment: `NODE_ENV=production`, `SIM_SEED=42`, `FRONTEND_ORIGIN=https://trustweave-taupe.vercel.app`.
+- Optional: `OPENAI_API_KEY` (enter it in Render → Environment, never in the repository). Leave it unset to keep semantic clusters disabled and the rest of the demo unchanged.
 
 The equivalent Dashboard path is **New → Blueprint** with `render.yaml`, or **New → Web Service** with the settings above. `render.yaml` marks `FRONTEND_ORIGIN` as `sync: false`, so set it to the exact frontend origin after the frontend exists.
 
@@ -486,7 +517,7 @@ curl -i -s -X OPTIONS https://trustweave-api-live.onrender.com/api/health \
   -H "Access-Control-Request-Method: GET"
 ```
 
-The second response includes `Access-Control-Allow-Origin: https://trustweave-taupe.vercel.app`. Then open the dashboard and click through Network, Project view, Contributor, Campaigns, Newcomers, Records, Simulator and the explainer page.
+The second response includes `Access-Control-Allow-Origin: https://trustweave-taupe.vercel.app`. Then open the landing page, follow **Open the interactive demo**, and click through Network, Project view, Contributor, Campaigns, Newcomers, Records, Simulator and the explainer page.
 
 Backend verification is exposed read-only for tooling:
 
@@ -502,7 +533,7 @@ curl -s -X POST https://trustweave-api-live.onrender.com/api/verify/run \
   -H "X-Verify-Token: $VERIFY_TOKEN"
 ```
 
-The public deployment currently running predates the verifier, PWA and desktop wrapper; these routes and assets appear only after the next authorized redeploy.
+The deployed frontend serves the landing page at `/`, the dashboard at `/network`, and the PWA assets from the same build. It also serves a generated Open Graph card at `/opengraph-image`, `/robots.txt`, `/sitemap.xml` and a branded 404, with canonical and social metadata on the landing page; `/api/verify/latest` reports 12/12 after the startup run.
 
 ### 15.6 Deployment limitations
 
@@ -532,7 +563,8 @@ An attacker who ages accounts, varies timing and content, builds plausible outsi
 - **Not a real P2P network.** One process hosts every simulated project. Gossip is simulated by pulling and verifying peer log copies; there is no libp2p, DHT, transport security or peer discovery.
 - **Not real cryptographic identity.** Ed25519 keys are valid cryptography, but they are deterministically derived for reproducibility. There is no key rotation, revocation of keys, hardware key storage or identity proof.
 - **No persistence.** Sandboxes and the read-only world cache are in process memory; restarting the backend clears them. A visitor's appended records do not follow them to another server instance, though the deterministic base world can always be rebuilt from the URL.
-- **No GitHub integration.** The app never reads or posts to a real repository, and no AI or GitHub credentials are used.
+- **No GitHub integration.** The app never reads or posts to a real repository, and no GitHub credentials are used. Semantic clusters send only simulated PR text to an embeddings provider when a backend key is configured; no repository, account or record leaves the server.
+- **Semantic clusters are not a classifier.** Cosine similarity groups similar wording, and ordinary project templates can group too. It does not establish authorship, intent, coordination or AI generation, and a cluster is never counted as a campaign by itself. With no key, the feature is disabled rather than replaced by lexical matching.
 - **No login, payments or persistent database.** These are intentionally out of scope. The app is deployed (see §15), but its state is in memory and resets on restart.
 - **Simplified governance.** Revocation and expiry are implemented as record semantics, but there is no full appeal, dispute-resolution or maintainer UI beyond the records demo.
 - **Limited visual scale.** The trust graph uses a fixed circular layout rather than a force-directed or virtualized graph, hides labels on very small screens, and the demo world is limited to 50 projects.

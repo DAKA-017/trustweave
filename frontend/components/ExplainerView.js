@@ -78,11 +78,11 @@ export function ExplainerView() {
       <header className="border-b border-line bg-panel/60">
         <div className="mx-auto flex w-full max-w-[1200px] flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
           <Link
-            href="/"
+            href="/network"
             className="inline-flex min-h-9 items-center gap-2 rounded-md text-xs font-medium text-muted hover:text-ink"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            Back to dashboard
+            Back to the demo
           </Link>
           <span className="inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.14em] text-amber">
             <FlaskConical className="h-3.5 w-3.5" aria-hidden="true" />

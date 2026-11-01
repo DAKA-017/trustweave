@@ -6,6 +6,7 @@ import { formatDate, humanize, plural, signalLabel } from "@/lib/format";
 import { PageHeader, Panel, Stat } from "@/components/ui";
 import { OutcomeBadge } from "@/components/OutcomeBadge";
 import { EmptyState, ErrorState, LoadingState } from "@/components/States";
+import { SemanticClusters } from "@/components/SemanticClusters";
 import snapshot from "@/lib/snapshot.json";
 
 const TIMELINE_LIMIT = 120;
@@ -53,6 +54,10 @@ export function CampaignView({ version }) {
         title="Campaigns"
         description="A campaign is reported only when at least two different warning signs connect at least two accounts. The signs are worked out across projects; no central authority declares them."
       />
+
+      <div className="mb-5">
+        <SemanticClusters version={version} />
+      </div>
 
       {campaigns.length === 0 ? (
         <EmptyState title="No campaign met the two-signal bar in this simulation">

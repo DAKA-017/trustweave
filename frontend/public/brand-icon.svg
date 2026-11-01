@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="TrustWeave">
+  <rect width="64" height="64" rx="14" fill="#141619"/>
+  <rect x="1.5" y="1.5" width="61" height="61" rx="12.5" fill="none" stroke="#38d4bb" stroke-opacity="0.35" stroke-width="1.5"/>
+  <path d="M13 23c10.5 0 10.5 18 21 18s10.5-18 17-18" fill="none" stroke="#38d4bb" stroke-width="4" stroke-linecap="round"/>
+  <path d="M13 41c10.5 0 10.5-18 21-18s10.5 18 17 18" fill="none" stroke="#6f797d" stroke-width="3" stroke-linecap="round"/>
+</svg>

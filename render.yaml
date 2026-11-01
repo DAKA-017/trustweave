@@ -17,3 +17,7 @@ services:
       # https://trustweave.vercel.app (no trailing slash).
       - key: FRONTEND_ORIGIN
         sync: false
+      # Optional: enables embedding-based semantic clusters. Set it in the
+      # Render dashboard; never commit a value to this file.
+      - key: OPENAI_API_KEY
+        sync: false

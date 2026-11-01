@@ -95,6 +95,7 @@ export function NetworkView({
   const [query, setQuery] = useState("");
   const [onlySelected, setOnlySelected] = useState(false);
   const [showAllLinks, setShowAllLinks] = useState(false);
+  const [hoveredId, setHoveredId] = useState(null);
   const { data, error, loading, refetch } = useApiResource(
     (signal) => api.getProjects(signal),
     `projects:${version}`,
@@ -144,11 +145,26 @@ export function NetworkView({
     .sort((a, b) => b.weight - a.weight)
     .slice(0, 10);
 
+  const hoveredProject =
+    projects.find((project) => project.id === hoveredId) ?? null;
+  const traceId = hoveredId ?? asProject;
+  const isTraced = (edge) =>
+    Boolean(traceId) && (edge.from === traceId || edge.to === traceId);
+  const connectedIds = new Set();
+  if (hoveredId) {
+    connectedIds.add(hoveredId);
+    for (const edge of declaredEdges) {
+      if (edge.from === hoveredId) connectedIds.add(edge.to);
+      if (edge.to === hoveredId) connectedIds.add(edge.from);
+    }
+  }
+  const hoveredPoint = hoveredProject ? positions.get(hoveredProject.id) : null;
+
   return (
     <div className="min-w-0">
       <PageHeader
         title="Network"
-        description="A map of who trusts whom. Each arrow points from a project to a project it trusts. Click any circle to see how that project judges people."
+        description="A map of who trusts whom. Each arrow points from a project to a project it trusts. Hover a circle to trace its links, then click it to see how that project judges people."
       >
         {selected && (
           <span className="rounded border border-teal/40 bg-teal/10 px-2 py-1 font-mono text-[11px] text-teal">
@@ -251,7 +267,7 @@ export function NetworkView({
             </p>
           </div>
         ) : (
-        <div className="rounded-md bg-charcoal/60 p-1">
+        <div className="relative rounded-md bg-charcoal/60 p-1">
           <svg
             viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
             className="h-auto w-full"
@@ -276,8 +292,7 @@ export function NetworkView({
               {visibleEdges.map((edge) => {
                 const from = positions.get(edge.from);
                 const to = positions.get(edge.to);
-                const touchesSelection =
-                  edge.from === asProject || edge.to === asProject;
+                const traced = isTraced(edge);
                 return (
                   <line
                     key={`${edge.from}-${edge.to}`}
@@ -285,16 +300,40 @@ export function NetworkView({
                     y1={from.y}
                     x2={to.x}
                     y2={to.y}
-                    stroke={
-                      touchesSelection
-                        ? "var(--color-teal)"
-                        : "var(--color-ink)"
-                    }
+                    stroke={traced ? "var(--color-teal)" : "var(--color-ink)"}
                     strokeWidth={0.6 + edge.weight * 1.8}
-                    strokeOpacity={
-                      touchesSelection ? 0.42 + edge.weight * 0.4 : 0.1 + edge.weight * 0.28
-                    }
+                    style={{
+                      strokeOpacity: traced
+                        ? 0.42 + edge.weight * 0.4
+                        : hoveredId
+                          ? 0.04
+                          : 0.1 + edge.weight * 0.28,
+                      transition: "stroke-opacity 0.2s ease, stroke 0.2s ease",
+                    }}
                     markerEnd="url(#trust-arrow)"
+                  />
+                );
+              })}
+            </g>
+
+            <g aria-hidden="true">
+              {visibleEdges.map((edge) => {
+                if (!isTraced(edge)) return null;
+                const from = positions.get(edge.from);
+                const to = positions.get(edge.to);
+                return (
+                  <line
+                    key={`flow-${edge.from}-${edge.to}`}
+                    x1={from.x}
+                    y1={from.y}
+                    x2={to.x}
+                    y2={to.y}
+                    stroke="var(--color-teal)"
+                    strokeWidth={0.9}
+                    strokeDasharray="2 10"
+                    strokeOpacity={0.6}
+                    className="trust-flow"
+                    pointerEvents="none"
                   />
                 );
               })}
@@ -305,6 +344,9 @@ export function NetworkView({
                 const point = positions.get(project.id);
                 const radius = 7 + Math.min(6, project.counts.contributors);
                 const isSelected = project.id === asProject;
+                const isHovered = project.id === hoveredId;
+                const dimmed =
+                  Boolean(hoveredId) && !connectedIds.has(project.id);
                 const label = project.name.length > 16
                   ? `${project.name.slice(0, 15)}…`
                   : project.name;
@@ -316,6 +358,14 @@ export function NetworkView({
                     tabIndex={0}
                     aria-label={`View as ${project.name}`}
                     data-testid={`node-${project.id}`}
+                    style={{
+                      opacity: dimmed ? 0.28 : 1,
+                      transition: "opacity 0.2s ease",
+                    }}
+                    onMouseEnter={() => setHoveredId(project.id)}
+                    onMouseLeave={() => setHoveredId(null)}
+                    onFocus={() => setHoveredId(project.id)}
+                    onBlur={() => setHoveredId(null)}
                     onClick={() => onOpenProject(project.id)}
                     onKeyDown={(event) => {
                       if (event.key === "Enter" || event.key === " ") {
@@ -327,6 +377,18 @@ export function NetworkView({
                     <title>
                       {`${project.name} (${project.id}) · click to evaluate as this project`}
                     </title>
+                    {isSelected && (
+                      <circle
+                        cx={point.x}
+                        cy={point.y}
+                        r={radius + 4}
+                        fill="none"
+                        stroke="var(--color-teal)"
+                        strokeWidth={1}
+                        className="node-pulse"
+                        pointerEvents="none"
+                      />
+                    )}
                     <circle
                       cx={point.x}
                       cy={point.y}
@@ -335,16 +397,24 @@ export function NetworkView({
                       pointerEvents="all"
                     />
                     <circle
+                      className="node-dot"
                       cx={point.x}
                       cy={point.y}
                       r={radius}
-                      fill={isSelected ? "var(--color-teal)" : "var(--color-panel)"}
+                      fill={
+                        isSelected || isHovered
+                          ? "var(--color-teal)"
+                          : "var(--color-panel)"
+                      }
                       stroke={
-                        isSelected
+                        isSelected || isHovered
                           ? "var(--color-teal)"
                           : "var(--color-line-strong)"
                       }
                       strokeWidth={isSelected ? 2 : 1.2}
+                      style={{
+                        transition: "fill 0.2s ease, stroke 0.2s ease",
+                      }}
                     />
                     <text
                       x={point.x}
@@ -359,6 +429,45 @@ export function NetworkView({
               })}
             </g>
           </svg>
+
+          {hoveredProject && hoveredPoint && (
+            <div
+              className="pointer-events-none absolute z-10 hidden sm:block"
+              style={{
+                left: `${(hoveredPoint.x / WIDTH) * 100}%`,
+                top: `${(hoveredPoint.y / HEIGHT) * 100}%`,
+                transform: "translate(-50%, calc(-100% - 12px))",
+                transition: "left 0.18s ease, top 0.18s ease",
+              }}
+            >
+              <div
+                data-testid="node-tooltip"
+                className="tooltip-in w-max max-w-[240px] rounded-md border border-teal/40 bg-charcoal/95 px-3 py-2 shadow-[0_18px_40px_-16px_rgba(0,0,0,0.85)]"
+              >
+                <p className="text-xs font-semibold text-ink">
+                  {hoveredProject.name}
+                </p>
+                <p className="mt-0.5 font-mono text-[9px] uppercase tracking-[0.12em] text-muted">
+                  {hoveredProject.id} ·{" "}
+                  {plural(
+                    hoveredProject.counts.contributors,
+                    "person",
+                    "people",
+                  )}
+                </p>
+                <p className="mt-1 text-[10px] text-muted">
+                  {plural(hoveredProject.trustConfig.length, "outgoing link")} ·{" "}
+                  {plural(
+                    Math.max(0, connectedIds.size - 1),
+                    "connected project",
+                  )}
+                </p>
+                <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.1em] text-teal">
+                  click to assess as this project
+                </p>
+              </div>
+            </div>
+          )}
         </div>
         )}
 
@@ -371,8 +480,9 @@ export function NetworkView({
           <span>arrow = “trusts”</span>
           <span>thicker line = stronger trust</span>
           <span className="text-teal">
-            teal = touches {selected?.id ?? "the selection"}
+            teal = touches {hoveredId ?? selected?.id ?? "the selection"}
           </span>
+          <span>hover a circle to trace its links</span>
           <span>click a circle to open that project</span>
         </div>
       </Panel>

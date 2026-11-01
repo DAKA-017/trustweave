@@ -16,7 +16,7 @@ test("serves an installable manifest with valid icons", async ({ request, baseUR
   expect(manifest.name).toContain("TrustWeave");
   expect(manifest.short_name).toBe("TrustWeave");
   expect(manifest.display).toBe("standalone");
-  expect(manifest.start_url).toBe("/");
+  expect(manifest.start_url).toBe("/network");
   expect(manifest.scope).toBe("/");
   expect(manifest.icons.some((icon) => icon.purpose === "maskable")).toBeTruthy();
   expect(manifest.icons.some((icon) => icon.purpose === "any")).toBeTruthy();
@@ -48,6 +48,7 @@ test("registers the service worker and caches only the app shell", async ({ page
 
   expect(cached.names.some((name) => name.startsWith("trustweave-shell"))).toBeTruthy();
   expect(cached.urls.some((url) => url.endsWith("/offline"))).toBeTruthy();
+  expect(cached.urls.some((url) => url.endsWith("/network"))).toBeTruthy();
   expect(cached.urls.some((url) => url.includes("/api/"))).toBeFalsy();
 });
 

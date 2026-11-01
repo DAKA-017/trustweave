@@ -5,7 +5,7 @@ export default function manifest() {
     short_name: "TrustWeave",
     description:
       "A simulated decentralized trust network that judges open source contributions by behavior and signed records, not by AI-text detection.",
-    start_url: "/",
+    start_url: "/network",
     scope: "/",
     display: "standalone",
     display_override: ["window-controls-overlay", "standalone"],

@@ -21,7 +21,7 @@ test.beforeEach(async ({ request, page, context }) => {
     data: BASE_WORLD,
   });
   expect(reset.ok()).toBeTruthy();
-  await page.goto("/");
+  await page.goto("/network");
   await expect(page.getByTestId("client-ready")).toBeVisible();
   await expect(page.getByRole("link", { name: "Network", exact: true })).toBeVisible();
 });
@@ -161,6 +161,155 @@ test("shows the coordinated campaign with multiple independent signals", async (
   ).toBeVisible();
 });
 
+test("shows semantic clusters and an honest disabled state", async ({ page }) => {
+  const route = "**/api/semantic-clusters*";
+
+  await page.route(route, (fulfillRoute) =>
+    fulfillRoute.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        simulation: { seed: 42 },
+        readOnly: true,
+        enabled: false,
+        status: "disabled",
+        reason:
+          "Semantic clustering is disabled because OPENAI_API_KEY is not set in the backend environment.",
+        model: "text-embedding-3-small",
+        threshold: 0.86,
+        lexicalThreshold: 0.82,
+        provider: null,
+        generatedAt: "2026-11-01T12:05:00.000Z",
+        totals: null,
+        clusters: [],
+        notes: [],
+      }),
+    }),
+  );
+
+  await page.getByRole("link", { name: "Campaigns", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Semantic similarity clusters" }),
+  ).toBeVisible();
+  const disabled = page.getByTestId("semantic-clusters-disabled");
+  await expect(disabled).toContainText("OPENAI_API_KEY");
+  await expect(disabled).toContainText("no PR text was sent anywhere");
+
+  await page.unroute(route);
+  await page.route(route, (fulfillRoute) =>
+    fulfillRoute.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        simulation: { seed: 42 },
+        readOnly: true,
+        enabled: true,
+        status: "ok",
+        model: "text-embedding-3-small",
+        threshold: 0.86,
+        lexicalThreshold: 0.82,
+        provider: {
+          name: "openai",
+          model: "text-embedding-3-small",
+          batches: 9,
+        },
+        generatedAt: "2026-11-01T12:05:00.000Z",
+        totals: {
+          pullRequests: 417,
+          embeddedPullRequests: 417,
+          uniqueTexts: 52,
+          dimensions: 1536,
+          crossProjectPairs: 84000,
+          semanticPairs: 1200,
+          lexicalPairs: 1900,
+          bothPairs: 1163,
+          semanticOnlyPairs: 37,
+          lexicalOnlyPairs: 800,
+          exactDuplicatePairs: 12,
+          clusters: 2,
+          returnedClusters: 1,
+          omittedClusters: 1,
+        },
+        clusters: [
+          {
+            id: "semantic_01",
+            members: 4,
+            projectCount: 4,
+            contributorCount: 2,
+            pairCount: 6,
+            meanSimilarity: 0.941,
+            minSimilarity: 0.902,
+            maxSimilarity: 0.988,
+            meanLexicalSimilarity: 0.512,
+            minLexicalSimilarity: 0.31,
+            maxLexicalSimilarity: 0.72,
+            semanticOnlyPairs: 2,
+            exactDuplicatePairs: 0,
+            campaignIds: ["campaign_01"],
+            campaignMembers: 2,
+            projects: [
+              { id: "p01", name: "Aurora UI" },
+              { id: "p02", name: "Basalt DB" },
+              { id: "p03", name: "Cobalt CLI" },
+              { id: "p04", name: "Drift Cache" },
+            ],
+            representatives: [
+              {
+                prId: "pr_0100",
+                projectId: "p02",
+                projectName: "Basalt DB",
+                contributorId: "c_campaign_01",
+                contributorHandle: "nova-build-01",
+                snippet:
+                  "This pull request improves performance and updates documentation.",
+              },
+              {
+                prId: "pr_0101",
+                projectId: "p03",
+                projectName: "Cobalt CLI",
+                contributorId: "c_campaign_01",
+                contributorHandle: "nova-build-01",
+                snippet:
+                  "This change improves performance and refreshes the docs.",
+              },
+            ],
+            commonPaths: [{ value: "src/core/perf.js", count: 4 }],
+            firstPrId: "pr_0100",
+          },
+        ],
+        notes: [
+          "Pairs are compared only when the two PRs target different projects.",
+          "Semantic pairs use cosine similarity.",
+          "Content similarity is investigative evidence. It does not prove authorship, intent, coordination or AI generation.",
+          "Ordinary PRs that share a project template can cluster too; campaign overlap is reported separately.",
+        ],
+      }),
+    }),
+  );
+
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "Semantic similarity clusters" }),
+  ).toBeVisible();
+  const panel = page.getByTestId("semantic-clusters");
+  await expect(page.getByText("text-embedding-3-small").first()).toBeVisible();
+  await expect(page.getByText("cosine ≥ 0.86")).toBeVisible();
+  await expect(panel.getByText("Meaning-only pairs")).toBeVisible();
+
+  const cluster = page.getByTestId("semantic-cluster").first();
+  await expect(cluster).toContainText("4 PRs across 4 projects");
+  await expect(cluster).toContainText("overlaps campaign_01");
+  await expect(cluster).toContainText(
+    "2 pairs matched by meaning without exact wording.",
+  );
+  await expect(cluster).toContainText("pr_0100");
+  await expect(cluster).toContainText("nova-build-01");
+  await expect(cluster).toContainText("Basalt DB");
+  await expect(cluster).toContainText("src/core/perf.js (4)");
+  await expect(panel).toContainText("1 smaller cluster omitted");
+  await expect(panel).toContainText("does not prove authorship");
+});
+
 test("keeps neutral newcomers unblocked and signs a sponsor vouch", async ({
   page,
 }) => {
@@ -253,6 +402,44 @@ test("searches, filters and navigates the trust graph", async ({ page }) => {
   await expect(
     page.getByRole("heading", { level: 1, name: "Assessing as Spruce Validation" }),
   ).toBeVisible();
+});
+
+test("traces a project's links when hovering the map", async ({ page }) => {
+  await page.getByTestId("node-p06").hover();
+
+  const tooltip = page.getByTestId("node-tooltip");
+  await expect(tooltip).toBeVisible();
+  await expect(tooltip).toContainText("Spruce Validation");
+  await expect(tooltip).toContainText("p06");
+  await expect(tooltip).toContainText("click to assess as this project");
+
+  await page.mouse.move(4, 4);
+  await expect(tooltip).toHaveCount(0);
+  await expect(page.getByTestId("network-count")).toContainText(
+    "30 of 30 projects",
+  );
+});
+
+test("jumps to a project from the quick jump palette", async ({ page }) => {
+  await page.getByTestId("quick-jump").click();
+
+  const dialog = page.getByTestId("quick-jump-dialog");
+  await expect(dialog).toBeVisible();
+  const input = page.getByTestId("quick-jump-input");
+  await expect(input).toBeFocused();
+
+  await input.fill("kelp");
+  await expect(dialog.getByText("p08 · 16 people")).toBeVisible();
+
+  await input.press("Enter");
+  await expect(page).toHaveURL(/\/project\?as=p08$/);
+  await expect(
+    page.getByRole("heading", {
+      level: 1,
+      name: "Assessing as Kelp Analytics",
+    }),
+  ).toBeVisible();
+  await expect(dialog).toHaveCount(0);
 });
 
 test("signs a denouncement and then revokes it", async ({ page }) => {

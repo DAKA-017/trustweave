@@ -5,12 +5,14 @@ import { badRequest, forbidden, notFound } from '../utils/errors.js';
 import { parseOrThrow } from '../utils/validate.js';
 import { worldQuerySchema } from '../models/schemas.js';
 import { evaluateContributor } from './trust-engine.js';
+import { createSemanticClusterService } from './semantic-clusters.js';
 
 const SESSION_HEADER = 'x-trustweave-session';
 const WORLD_HEADER = 'x-trustweave-world';
 const SESSION_PATTERN = /^[A-Za-z0-9_-]{6,64}$/;
 const MAX_SESSIONS = 200;
 const MAX_READ_ONLY_WORLDS = 16;
+const MAX_SEMANTIC_WORLDS = 24;
 
 function defaultWorld() {
   return {
@@ -60,6 +62,8 @@ export class SimulationHost {
     this.readOnlyWorlds = new Map();
     this.metricsCache = new WeakMap();
     this.multiMetricsCache = new WeakMap();
+    this.semanticService = createSemanticClusterService();
+    this.semanticCache = new Map();
   }
 
   readSessionId(req) {
@@ -289,6 +293,43 @@ export class SimulationHost {
       this.metricsCache.set(state, metrics);
     }
     return metrics;
+  }
+
+  /**
+   * Embedding calls are expensive and depend only on the generated world, not
+   * on appended records. Cache one promise per world configuration so every
+   * sandbox with the same seed shares it, bound the map, and evict rejections
+   * so a later request can retry the provider.
+   */
+  getSemanticClusters(state) {
+    const key = worldKey({
+      seed: state.seed,
+      size: state.size,
+      campaignSize: state.campaignSize,
+      scenario: state.scenario,
+    });
+    const cached = this.semanticCache.get(key);
+    if (cached) {
+      this.semanticCache.delete(key);
+      this.semanticCache.set(key, cached);
+      return cached;
+    }
+    const pending = this.semanticService.compute(state);
+    this.semanticCache.set(key, pending);
+    if (this.semanticCache.size > MAX_SEMANTIC_WORLDS) {
+      this.semanticCache.delete(this.semanticCache.keys().next().value);
+    }
+    pending.catch(() => {
+      if (this.semanticCache.get(key) === pending) {
+        this.semanticCache.delete(key);
+      }
+    });
+    return pending;
+  }
+
+  setSemanticService(service) {
+    this.semanticService = service;
+    this.semanticCache = new Map();
   }
 
   getMultiMetrics(state) {

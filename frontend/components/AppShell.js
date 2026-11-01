@@ -12,7 +12,9 @@ import {
   UserSearch,
 } from "lucide-react";
 import { pathForView } from "@/lib/routes";
+import { BrandMark } from "./BrandMark";
 import { InstallButton } from "./InstallButton";
+import { QuickJump } from "./QuickJump";
 
 const NAV_ITEMS = [
   { id: "network", label: "Network", icon: Network },
@@ -23,29 +25,6 @@ const NAV_ITEMS = [
   { id: "records", label: "Records", icon: ScrollText },
   { id: "simulator", label: "Simulator", icon: SlidersHorizontal },
 ];
-
-function BrandMark() {
-  return (
-    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-teal/40 bg-teal/10">
-      <svg
-        viewBox="0 0 24 24"
-        className="h-5 w-5"
-        fill="none"
-        strokeWidth="1.6"
-        aria-hidden="true"
-      >
-        <path
-          d="M3.5 7.5c4.2 0 4.2 9 8.5 9s4.3-9 8.5-9"
-          stroke="var(--color-teal)"
-        />
-        <path
-          d="M3.5 16.5c4.2 0 4.2-9 8.5-9s4.3 9 8.5 9"
-          stroke="var(--color-line-strong)"
-        />
-      </svg>
-    </span>
-  );
-}
 
 function Meta({ meta, hydrated }) {
   if (!meta) {
@@ -95,12 +74,19 @@ export function AppShell({
   contributorId,
   hydrated,
   onNavigate,
+  onOpenProject,
   children,
 }) {
   const active = NAV_ITEMS.find((item) => item.id === view);
 
   return (
     <div className="flex min-h-screen w-full flex-col md:flex-row">
+      <a
+        href="#demo-main"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-teal focus:px-3 focus:py-2 focus:text-sm focus:font-semibold focus:text-charcoal"
+      >
+        Skip to content
+      </a>
       <aside className="min-w-0 border-b border-line bg-panel/70 md:sticky md:top-0 md:h-screen md:w-60 md:shrink-0 md:overflow-y-auto md:border-b-0 md:border-r">
         <div className="flex items-center justify-between gap-2 px-4 py-4">
           <Link
@@ -138,13 +124,16 @@ export function AppShell({
                 })}
                 onClick={() => onNavigate?.(item.id)}
                 aria-current={isActive ? "page" : undefined}
-                className={`flex min-h-9 shrink-0 items-center gap-2 rounded-md border px-2.5 py-1.5 text-left text-xs font-medium transition-colors ${
+                className={`group flex min-h-9 shrink-0 items-center gap-2 rounded-md border px-2.5 py-1.5 text-left text-xs font-medium transition-colors ${
                   isActive
                     ? "border-teal/40 bg-teal/10 text-teal"
                     : "border-transparent text-muted hover:bg-raised hover:text-ink"
                 }`}
               >
-                <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <Icon
+                  className="h-4 w-4 shrink-0 transition-transform group-hover:scale-110"
+                  aria-hidden="true"
+                />
                 <span className="whitespace-nowrap">{item.label}</span>
               </Link>
             );
@@ -176,15 +165,29 @@ export function AppShell({
 
       <div className="min-w-0 flex-1">
         <header className="sticky top-0 z-10 border-b border-line bg-charcoal/95 backdrop-blur">
-          <div className="mx-auto flex w-full max-w-[1320px] flex-wrap items-center justify-between gap-2 px-4 py-2.5 sm:px-6 lg:px-8">
+          <div className="mx-auto flex w-full max-w-[1320px] flex-col gap-2 px-4 py-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:px-6 lg:px-8">
             <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted">
               TrustWeave / {active?.label ?? "Explainer"}
             </span>
-            <Meta meta={meta} hydrated={hydrated} />
+            <div className="flex min-w-0 flex-wrap items-center gap-2 sm:flex-1 sm:justify-end">
+              <QuickJump
+                asProject={asProject}
+                contributorId={contributorId}
+                onNavigate={onNavigate}
+                onOpenProject={onOpenProject}
+              />
+              <Meta meta={meta} hydrated={hydrated} />
+            </div>
           </div>
         </header>
-        <main className="mx-auto w-full max-w-[1320px] px-4 pb-16 pt-6 sm:px-6 lg:px-8">
-          {children}
+        <main
+          id="demo-main"
+          tabIndex={-1}
+          className="mx-auto w-full max-w-[1320px] px-4 pb-16 pt-6 focus:outline-none sm:px-6 lg:px-8"
+        >
+          <div key={view} className="view-enter">
+            {children}
+          </div>
         </main>
       </div>
     </div>

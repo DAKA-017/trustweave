@@ -4,6 +4,7 @@ const CACHE = "trustweave-shell-v1";
 const OFFLINE_URL = "/offline";
 const SHELL = [
   "/",
+  "/network",
   OFFLINE_URL,
   "/manifest.webmanifest",
   "/apple-touch-icon.png",

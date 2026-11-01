@@ -88,7 +88,7 @@ async function startServices() {
 
   const [backendPort, frontendPort] = [await findFreePort(), await findFreePort()];
   const frontendOrigin = `http://127.0.0.1:${frontendPort}`;
-  dashboardUrl = frontendOrigin;
+  dashboardUrl = `${frontendOrigin}/network`;
 
   backendProcess = spawn(process.execPath, [path.join(backendDir, "server.js")], {
     cwd: backendDir,

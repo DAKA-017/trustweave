@@ -81,6 +81,7 @@ export const api = {
     ),
   getNewcomers: (signal) => request("/newcomers", { signal }),
   getCampaigns: (signal) => request("/campaigns", { signal }),
+  getSemanticClusters: (signal) => request("/semantic-clusters", { signal }),
   getRecords: (projectId, tamper = "none", signal) =>
     request(
       `/records?projectId=${id(projectId)}&tamper=${id(tamper)}`,
