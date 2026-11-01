@@ -24,19 +24,27 @@ function safeRatio(numerator, denominator, fallback = 1) {
 
 function campaignMetrics(state) {
   const truth = new Set(state.groundTruth.campaignMembers);
+  const sleepers = new Set(state.groundTruth.sleeperCampaignMembers ?? []);
   const predicted = new Set(
     state.campaignData.campaigns.flatMap((campaign) => campaign.memberContributorIds),
   );
-  const matched = [...predicted].filter((id) => truth.has(id));
-  const falsePositives = [...predicted].filter((id) => !truth.has(id));
+  const matched = [...predicted].filter((id) => truth.has(id) || sleepers.has(id));
+  const falsePositives = [...predicted].filter(
+    (id) => !truth.has(id) && !sleepers.has(id),
+  );
   const missed = [...truth].filter((id) => !predicted.has(id));
+  const truthMembers = truth.size + sleepers.size;
   return {
     precision: round(safeRatio(matched.length, predicted.size)),
-    recall: round(safeRatio(matched.length, truth.size)),
+    recall: round(safeRatio(matched.length, truthMembers)),
+    observableRecall: round(safeRatio(matched.length, truth.size)),
     predictedCampaigns: state.campaignData.campaigns.length,
     predictedMembers: predicted.size,
-    truthMembers: truth.size,
+    truthMembers,
+    observableTruthMembers: truth.size,
+    sleeperMembers: sleepers.size,
     matchedMembers: matched.length,
+    unobservedSleepers: [...sleepers].filter((id) => !predicted.has(id)),
     falsePositives,
     missed,
     signalTypes: [
@@ -287,8 +295,10 @@ export function computeMetricsAcrossSeeds({ seeds, size, campaignSize }) {
       seed: result.seed,
       campaignPrecision: result.campaign.precision,
       campaignRecall: result.campaign.recall,
+      observableRecall: result.campaign.observableRecall,
       predictedCampaigns: result.campaign.predictedCampaigns,
       predictedMembers: result.campaign.predictedMembers,
+      sleeperMembers: result.campaign.sleeperMembers,
       newcomerFalseFlagRate: result.newcomerFalseFlag.rate,
       flaggedNewcomers: result.newcomerFalseFlag.flagged,
       newcomersEvaluated: result.newcomerFalseFlag.total,
@@ -310,11 +320,15 @@ export function computeMetricsAcrossSeeds({ seeds, size, campaignSize }) {
       campaignRecallMean: round(
         campaignRecall.reduce((sum, value) => sum + value, 0) / campaignRecall.length,
       ),
+      observableRecallMean: round(
+        results.reduce((sum, result) => sum + result.campaign.observableRecall, 0) /
+          results.length,
+      ),
       newcomerFalseFlagRateMax: round(Math.max(...falseFlagRates)),
       explanationCompletenessMin: round(Math.min(...explanationRates)),
       hardCasesPassedTotal: results.reduce((sum, result) => sum + result.hardCasesPassed, 0),
       hardCasesTotal: results.reduce((sum, result) => sum + result.hardCasesTotal, 0),
     },
-    note: 'Each seed rebuilds the whole simulation independently. Metrics are measured against simulator ground truth, which real deployments would not have.',
+    note: 'Each seed rebuilds the whole simulation independently. Metrics are measured against simulator ground truth, which real deployments would not have. Recall includes campaign sleeper accounts that never posted or signed; observable recall covers the members who left a trace.',
   };
 }

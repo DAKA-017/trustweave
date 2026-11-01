@@ -243,8 +243,8 @@ Simulated PR content is used for duplicate detection only. It is never inspected
 ## 10. Seeded simulator
 
 - Deterministic PRNG (`mulberry32`) and a fixed simulation clock: `2026-11-01T12:00:00.000Z`.
-- Default world: 30 projects, 49 contributors, 417 pull requests, 126 signed records. Configurable to 20–50 projects and 10–15 campaign accounts.
-- The injected campaign has 12 accounts that reach 24 projects with five signal types.
+- Default world: 30 projects, 52 contributors, 417 pull requests, 126 signed records. Configurable to 20–50 projects and 10–15 campaign accounts.
+- The injected campaign has 12 active accounts that reach 24 projects with five signal types, plus 3 ground-truth sleeper accounts that never post or sign.
 - Twelve neutral newcomers, including honest newcomers, a non-native English writer and an AI-assisted contributor.
 - Hard cases exercised by tests and the Simulator view: honest multi-project newcomer, legitimate AI assistance, human-written spam, non-native phrasing, no-evidence malicious denouncement, per-project divergence, campaign member, sybil project with zero weight, and a low-credibility mass denouncer.
 - Same seed ⇒ same keys, logs, PRs, signals and metrics. Different seeds produce independent worlds.
@@ -253,19 +253,20 @@ Simulated PR content is used for duplicate detection only. It is never inspected
 
 Current default world (seed 42, 30 projects, 12 campaign accounts):
 
-- Campaign precision **1.000**, recall **1.000** (12 predicted members, 12 truth members, 1 campaign, 24 affected projects, 5 signal types).
+- Campaign precision **1.000** (12 of 12 predicted members are in the ring), recall **0.800** (12 of 15 ground-truth members; 1 campaign over 24 affected projects, 5 signal types).
+- Observable-member recall **1.000** (12 of 12 members who left a trace). The 3 remaining ground-truth accounts are sleepers that never posted or signed, so behavior-only detection cannot see them.
 - Newcomer false flags **0 of 14** across 30 evaluating projects.
 - Explanation completeness **29 / 29** non-neutral assessments with at least one reference.
 - Hard cases **9 / 9**.
-- Counts: 30 projects, 49 contributors, 417 PRs, 126 signed records.
+- Counts: 30 projects, 52 contributors, 417 PRs, 126 signed records.
 
-Multi-seed run (seeds 42, 7, 99, 123, 2026; 20 projects, 10 campaign accounts):
+Multi-seed run (seeds 42, 7, 99, 123, 2026; 30 projects, 12 campaign accounts):
 
-- Campaign precision mean **1.000**, recall mean **1.000**.
+- Campaign precision mean **1.000**, recall mean **0.800** (observable recall mean **1.000**).
 - Newcomer false-flag maximum **0.000**; explanation completeness minimum **1.000**.
 - Hard cases **45 / 45**; measured variance **0** for all reported rates.
 
-**Honest caveat:** these are synthetic, idealized results. The generator is constructed to contain a detectable campaign and its labels are known to the simulator. Perfect scores are not evidence of real-world precision or recall, and the detector has not been calibrated against real repository data. The metrics demonstrate that the implemented safeguards behave as specified inside this simulation, nothing more.
+**Honest caveat:** these are synthetic, idealized results. The generator is constructed to contain a detectable campaign and its labels are known to the simulator. A recall below 1.000 comes from the deliberate sleeper limit, not from field measurement; the remaining 1.000 values describe this controlled simulator only. The detector has not been calibrated against real repository data. The metrics demonstrate that the implemented safeguards behave as specified inside this simulation, nothing more.
 
 ## 12. API
 
@@ -317,7 +318,7 @@ cd frontend && npx eslint . && npm run build && npm run test:e2e
 
 Verified in this build:
 
-- **50 backend tests pass** (Node test runner + Supertest): signatures, tampering, hash chains, gossip, expiry/revocation, transitive decay, cycle safety and bounded trust values, strongest path, cluster independence, denouncement safeguards, duplicate-evidence collapsing, vouch caps, newcomer neutrality, campaign signals and clustering, legitimate-versus-suspicious detection, campaign provenance, determinism, size/seed validation, API-level reproducibility, API error shapes, CORS, metrics.
+- **51 backend tests pass** (Node test runner + Supertest): signatures, tampering, hash chains, gossip, expiry/revocation, transitive decay, cycle safety and bounded trust values, strongest path, cluster independence, denouncement safeguards, duplicate-evidence collapsing, vouch caps, newcomer neutrality, campaign signals and clustering, legitimate-versus-suspicious detection, campaign provenance, sleeper-account recall, all four seed 7/99 × campaign size 10/15 combinations at 50 projects, determinism, size/seed validation, API-level reproducibility, API error shapes, CORS, metrics.
 - **13 Playwright Chromium flows pass**: viewing as different projects (including a URL change and a reload that keeps the same project); a contributor explanation; the campaign view with evidence provenance; the newcomer lane plus signed sponsor vouch; both tamper modes with both record types visible; graph search, edge filtering and node navigation; signing and revoking a denouncement; a signed record surviving a page reload; a retryable error when the API is unreachable; phone-width overflow checks across all views; direct-URL deep links for every view; rebuilding from a new seed plus multi-seed metrics; and the `/verify` page reaching 12/12 live checks.
 - The `/verify` page executes its checks in the browser against the running API, so the results are not stored fixtures. It reads the mutual p10 ↔ p08 trust cycle, the full campaign provenance block, and the built-in revoked (p13) and expired (p12) logs; signs one vouch in project p08; rebuilds seed 7 twice to compare counts, member ids, signals and record hashes before restoring seed 42 with 12; and reloads once on the first visit to prove the signed record is still present afterwards. Transient network or 5xx failures are retried once, while assertion failures are never retried. Opening it is the quickest way to audit the demo.
 - Frontend ESLint passes; the production build generates all eleven routes (`/`, `/network`, `/project`, `/contributor`, `/campaigns`, `/newcomers`, `/records`, `/simulator`, `/verify`, `/explainer`, not-found) as static pages with real snapshot content in the HTML.
@@ -428,7 +429,7 @@ The second response includes `Access-Control-Allow-Origin: https://trustweave-ta
 - **No persistence.** State is in memory; restarting the backend resets everything. There is no database.
 - **No GitHub integration.** The app never reads or posts to a real repository, and no AI or GitHub credentials are used.
 - **No login, payments or persistent database.** These are intentionally out of scope. The app is deployed (see §15), but its state is in memory and resets on restart.
-- **Synthetic evaluation.** Precision, recall and newcomer false-flag rates are measured against simulator ground truth that a real deployment would not have. The perfect scores are not a real-world accuracy claim.
+- **Synthetic evaluation.** Precision, recall and newcomer false-flag rates are measured against simulator ground truth that a real deployment would not have. The near-perfect scores are not a real-world accuracy claim; the non-perfect recall is a designed sleeper limitation, not an empirical field result.
 - **Patient, slow sybil attacks are not solved.** An attacker who ages accounts, varies timing and content, and avoids rings can evade these thresholds. Detecting long-horizon collusion would require more history and different analysis.
 - **Thresholds are fixed in this build.** They are configurable in code, but there is no calibration workflow against labeled real data.
 - **Simplified governance.** Revocation and expiry are implemented as record semantics, but there is no full appeal, dispute-resolution or maintainer UI beyond the records demo.

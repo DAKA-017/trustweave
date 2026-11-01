@@ -300,7 +300,11 @@ test('CORS is restricted to the configured origin and TrustWeave deployments', a
 test('GET /api/metrics reports measurements for one seed and across seeds', async () => {
   const current = await request(app).get('/api/metrics').expect(200);
   assert.equal(current.body.metrics.campaign.precision, 1);
-  assert.equal(current.body.metrics.campaign.recall, 1);
+  assert.equal(current.body.metrics.campaign.recall, 0.8);
+  assert.equal(current.body.metrics.campaign.observableRecall, 1);
+  assert.equal(current.body.metrics.campaign.sleeperMembers, 3);
+  assert.equal(current.body.metrics.campaign.unobservedSleepers.length, 3);
+  assert.equal(current.body.metrics.campaign.missed.length, 0);
   assert.equal(current.body.metrics.newcomerFalseFlag.rate, 0);
   assert.equal(current.body.metrics.explanationCompleteness.rate, 1);
   assert.equal(
@@ -313,7 +317,8 @@ test('GET /api/metrics reports measurements for one seed and across seeds', asyn
     .query({ multi: '1' })
     .expect(200);
   assert.equal(multi.body.multiSeed.aggregate.campaignPrecisionMean, 1);
-  assert.equal(multi.body.multiSeed.aggregate.campaignRecallMean, 1);
+  assert.equal(multi.body.multiSeed.aggregate.campaignRecallMean, 0.8);
+  assert.equal(multi.body.multiSeed.aggregate.observableRecallMean, 1);
   assert.equal(multi.body.multiSeed.aggregate.newcomerFalseFlagRateMax, 0);
   assert.equal(multi.body.multiSeed.aggregate.explanationCompletenessMin, 1);
   assert.ok(multi.body.multiSeed.variance.campaignPrecision.range === 0);

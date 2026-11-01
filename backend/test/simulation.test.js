@@ -52,7 +52,12 @@ test('all hard cases pass for the default seed and are fully explained', () => {
   const metrics = computeMetricsForState(state);
 
   assert.equal(metrics.campaign.precision, 1);
-  assert.equal(metrics.campaign.recall, 1);
+  assert.equal(metrics.campaign.recall, 0.8);
+  assert.equal(metrics.campaign.observableRecall, 1);
+  assert.equal(metrics.campaign.sleeperMembers, 3);
+  assert.equal(metrics.campaign.unobservedSleepers.length, 3);
+  assert.equal(metrics.campaign.missed.length, 0);
+  assert.equal(metrics.campaign.falsePositives.length, 0);
   assert.equal(metrics.newcomerFalseFlag.rate, 0);
   assert.ok(metrics.newcomerFalseFlag.total >= 10);
   assert.equal(metrics.explanationCompleteness.rate, 1);
@@ -64,7 +69,7 @@ test('all hard cases pass for the default seed and are fully explained', () => {
   }
 });
 
-test('campaign precision and recall are perfect and newcomer false flags stay zero across seeds', () => {
+test('measured recall includes sleepers while newcomer false flags stay zero across seeds', () => {
   const multi = computeMetricsAcrossSeeds({
     seeds: config.multiSeedList,
     size: 30,
@@ -72,7 +77,8 @@ test('campaign precision and recall are perfect and newcomer false flags stay ze
   });
 
   assert.equal(multi.aggregate.campaignPrecisionMean, 1);
-  assert.equal(multi.aggregate.campaignRecallMean, 1);
+  assert.equal(multi.aggregate.campaignRecallMean, 0.8);
+  assert.equal(multi.aggregate.observableRecallMean, 1);
   assert.equal(multi.aggregate.newcomerFalseFlagRateMax, 0);
   assert.equal(multi.aggregate.explanationCompletenessMin, 1);
   assert.equal(
@@ -92,8 +98,31 @@ test('campaign precision and recall are perfect and newcomer false flags stay ze
 
   for (const seedResult of multi.seeds) {
     assert.equal(seedResult.campaignPrecision, 1, `seed ${seedResult.seed}`);
-    assert.equal(seedResult.campaignRecall, 1, `seed ${seedResult.seed}`);
+    assert.equal(seedResult.campaignRecall, 0.8, `seed ${seedResult.seed}`);
+    assert.equal(seedResult.observableRecall, 1, `seed ${seedResult.seed}`);
+    assert.equal(seedResult.sleeperMembers, 3, `seed ${seedResult.seed}`);
     assert.equal(seedResult.newcomerFalseFlagRate, 0, `seed ${seedResult.seed}`);
+  }
+});
+
+test('seeds 7 and 99 at size 50 find the campaign with zero newcomer false flags', () => {
+  for (const seed of [7, 99]) {
+    for (const campaignSize of [10, 15]) {
+      const state = buildSimulation({ seed, size: 50, campaignSize });
+      const metrics = computeMetricsForState(state);
+      const label = `seed ${seed}, campaignSize ${campaignSize}`;
+
+      assert.equal(metrics.campaign.predictedCampaigns, 1, label);
+      assert.equal(metrics.campaign.predictedMembers, campaignSize, label);
+      assert.equal(metrics.campaign.observableRecall, 1, label);
+      assert.equal(metrics.campaign.missed.length, 0, label);
+      assert.equal(metrics.campaign.falsePositives.length, 0, label);
+      assert.equal(metrics.campaign.sleeperMembers, 3, label);
+      assert.ok(metrics.campaign.recall < 1, label);
+      assert.equal(metrics.newcomerFalseFlag.rate, 0, label);
+      assert.equal(metrics.newcomerFalseFlag.flagged, 0, label);
+      assert.equal(metrics.hardCasesPassed, metrics.hardCasesTotal, label);
+    }
   }
 });
 
@@ -108,7 +137,8 @@ test('different sizes and campaign sizes still produce one explainable campaign'
 
   const metrics = computeMetricsForState(state);
   assert.equal(metrics.campaign.precision, 1);
-  assert.equal(metrics.campaign.recall, 1);
+  assert.equal(metrics.campaign.recall, 0.769);
+  assert.equal(metrics.campaign.observableRecall, 1);
   assert.equal(metrics.newcomerFalseFlag.rate, 0);
   assert.equal(metrics.hardCasesPassed, metrics.hardCasesTotal);
 });

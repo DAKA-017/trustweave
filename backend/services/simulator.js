@@ -128,6 +128,21 @@ export function buildSimulation({
     );
   });
 
+  // Sleepers belong to the operation in ground truth but leave no trace: no
+  // submissions and no signed records. A behavior-only detector cannot observe
+  // them, so metrics count them as misses instead of reporting perfect recall.
+  const sleeperCampaignMembers = Array.from(
+    { length: 3 },
+    (_, index) => `c_campaign_sleeper_${pad(index + 1)}`,
+  );
+  sleeperCampaignMembers.forEach((id, index) => {
+    addContributor(
+      id,
+      `nova-sleeper-${pad(index + 1)}`,
+      daysAgoIso(nowMs, 180 + index * 30),
+    );
+  });
+
   const hardCases = {
     goodNewcomer: 'c_new_good',
     aiAssisted: 'c_ai_assisted',
@@ -616,6 +631,7 @@ export function buildSimulation({
     clusterCache: new Map(),
     groundTruth: {
       campaignMembers,
+      sleeperCampaignMembers,
       legitNewcomers,
       humanSpamId: hardCases.humanSpam,
       aiAssistedId: hardCases.aiAssisted,

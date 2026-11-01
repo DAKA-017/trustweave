@@ -232,10 +232,12 @@ export function SimulatorView({ version, meta, onSimulated }) {
                   <Stat
                     label="Campaign precision"
                     value={formatRate(current.campaign.precision)}
+                    hint={`${current.campaign.matchedMembers}/${current.campaign.predictedMembers} predicted`}
                   />
                   <Stat
                     label="Campaign recall"
                     value={formatRate(current.campaign.recall)}
+                    hint={`${current.campaign.matchedMembers}/${current.campaign.truthMembers} incl. ${current.campaign.sleeperMembers} sleeper(s)`}
                   />
                   <Stat
                     label="Newcomer false flags"
@@ -252,8 +254,13 @@ export function SimulatorView({ version, meta, onSimulated }) {
                 <p className="mt-3 text-[11px] leading-relaxed text-muted">
                   Predicted {current.campaign.predictedMembers} campaign member(s)
                   across {current.campaign.predictedCampaigns} campaign(s); truth is{" "}
-                  {current.campaign.truthMembers} member(s). Newcomer checks run
-                  across {current.newcomerFalseFlag.projectsEvaluated} projects.
+                  {current.campaign.truthMembers} member(s), including{" "}
+                  {current.campaign.sleeperMembers} sleeper account(s) that never
+                  posted or signed. Behavior-only detection cannot observe those
+                  sleepers, so recall is measured against the full ring while
+                  observable-member recall is{" "}
+                  {formatRate(current.campaign.observableRecall)}. Newcomer checks
+                  run across {current.newcomerFalseFlag.projectsEvaluated} projects.
                 </p>
 
                 <h3 className="mt-4 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
@@ -327,7 +334,8 @@ export function SimulatorView({ version, meta, onSimulated }) {
                     </span>
                     <span className="break-words font-mono text-[10px] text-muted">
                       precision {formatRate(seed.campaignPrecision)} · recall{" "}
-                      {formatRate(seed.campaignRecall)} · newcomer false flags{" "}
+                      {formatRate(seed.campaignRecall)} (observable{" "}
+                      {formatRate(seed.observableRecall)}) · newcomer false flags{" "}
                       {formatPercent(seed.newcomerFalseFlagRate)} · hard cases{" "}
                       {seed.hardCasesPassed}/{seed.hardCasesTotal}
                     </span>
