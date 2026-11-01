@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { rateLimit } from '../middleware/rate-limit.js';
 
-function fakeRequest(ip, method = 'POST') {
-  return { ip, method, url: '/api/simulate' };
+function fakeRequest(ip, headers = {}) {
+  return { ip, headers, method: 'POST', url: '/api/simulate' };
 }
 
 function fakeResponse() {
@@ -27,8 +27,8 @@ function fakeResponse() {
   };
 }
 
-function call(limiter, ip) {
-  const req = fakeRequest(ip);
+function call(limiter, ip, headers) {
+  const req = fakeRequest(ip, headers);
   const res = fakeResponse();
   let passed = false;
   limiter(req, res, () => {
@@ -71,4 +71,36 @@ test('the window reopens after it expires', async () => {
   assert.equal(call(limiter, '203.0.113.12').passed, false);
   await new Promise((resolve) => setTimeout(resolve, 40));
   assert.equal(call(limiter, '203.0.113.12').passed, true);
+});
+
+test('a proxied request is keyed by the Cloudflare client address', () => {
+  const limiter = rateLimit({ max: 2, windowMs: 60_000 });
+  const headers = { 'cf-connecting-ip': '198.51.100.7' };
+  assert.equal(call(limiter, '10.0.0.4', headers).passed, true);
+  assert.equal(call(limiter, '10.0.0.4', headers).passed, true);
+  assert.equal(call(limiter, '10.0.0.4', headers).passed, false);
+
+  const otherClient = { 'cf-connecting-ip': '198.51.100.8' };
+  assert.equal(call(limiter, '10.0.0.4', otherClient).passed, true);
+});
+
+test('X-Forwarded-For is used when no Cloudflare header is present', () => {
+  const limiter = rateLimit({ max: 1, windowMs: 60_000 });
+  const headers = { 'x-forwarded-for': '10.0.0.4, 198.51.100.20' };
+  assert.equal(call(limiter, '10.0.0.4', headers).passed, true);
+  assert.equal(call(limiter, '10.0.0.4', headers).passed, false);
+});
+
+test('a request with no public address is never throttled', () => {
+  const limiter = rateLimit({ max: 1, windowMs: 60_000 });
+  assert.equal(call(limiter, undefined, {}).passed, true);
+  assert.equal(call(limiter, undefined, {}).passed, true);
+  assert.equal(
+    call(limiter, '10.0.0.4', { 'x-forwarded-for': '10.0.0.4, 192.168.0.9' }).passed,
+    true,
+  );
+  assert.equal(
+    call(limiter, '10.0.0.4', { 'x-forwarded-for': '10.0.0.4, 192.168.0.9' }).passed,
+    true,
+  );
 });
