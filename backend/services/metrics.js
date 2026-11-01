@@ -25,6 +25,7 @@ function safeRatio(numerator, denominator, fallback = 1) {
 function campaignMetrics(state) {
   const truth = new Set(state.groundTruth.campaignMembers);
   const sleepers = new Set(state.groundTruth.sleeperCampaignMembers ?? []);
+  const quiet = new Set(state.groundTruth.quietCampaignMembers ?? []);
   const predicted = new Set(
     state.campaignData.campaigns.flatMap((campaign) => campaign.memberContributorIds),
   );
@@ -34,6 +35,58 @@ function campaignMetrics(state) {
   );
   const missed = [...truth].filter((id) => !predicted.has(id));
   const truthMembers = truth.size + sleepers.size;
+
+  const submissionsByMember = new Map();
+  for (const pr of state.pullRequests) {
+    submissionsByMember.set(
+      pr.contributorId,
+      (submissionsByMember.get(pr.contributorId) ?? 0) + 1,
+    );
+  }
+
+  const describeMiss = (id) => {
+    const contributor = state.contributors.get(id);
+    const submissions = submissionsByMember.get(id) ?? 0;
+    const memberSignals = state.campaignData.signalsByContributor[id] ?? [];
+    const reasons = [];
+    if (sleepers.has(id)) {
+      reasons.push('no submissions and no signed records, so no signal can be derived');
+    } else if (submissions === 0) {
+      reasons.push('no submissions, so no signal can be derived');
+    } else if (memberSignals.length === 0) {
+      reasons.push(
+        `${submissions} submission(s) stayed below every signal threshold, so no behavioral evidence was produced`,
+      );
+    } else if (quiet.has(id)) {
+      reasons.push(
+        `${submissions} submission(s) produced ${memberSignals.length} signal(s) but no link to another account, so no cluster was formed`,
+      );
+    }
+    if (memberSignals.length === 0 && submissions > 0) {
+      reasons.push('no vouch or shared-content edge connected it to the ring');
+    }
+    return {
+      contributorId: id,
+      handle: contributor?.handle ?? id,
+      category: sleepers.has(id) ? 'sleeper' : quiet.has(id) ? 'quiet' : 'active',
+      submissions,
+      signalTypes: memberSignals.map((item) => item.type),
+      reason: reasons.join('; ') || 'predicted as part of no campaign',
+    };
+  };
+
+  const memberSignalCoverage = {};
+  const unobservedQuiet = [];
+  for (const id of [...truth, ...sleepers]) {
+    const memberSignals = state.campaignData.signalsByContributor[id] ?? [];
+    memberSignalCoverage[id] = {
+      detected: predicted.has(id),
+      submissions: submissionsByMember.get(id) ?? 0,
+      signalTypes: memberSignals.map((item) => item.type),
+    };
+    if (quiet.has(id) && !predicted.has(id)) unobservedQuiet.push(id);
+  }
+
   return {
     precision: round(safeRatio(matched.length, predicted.size)),
     recall: round(safeRatio(matched.length, truthMembers)),
@@ -42,11 +95,16 @@ function campaignMetrics(state) {
     predictedMembers: predicted.size,
     truthMembers,
     observableTruthMembers: truth.size,
+    activeTruthMembers: truth.size - quiet.size,
+    quietMembers: [...quiet],
     sleeperMembers: sleepers.size,
     matchedMembers: matched.length,
     unobservedSleepers: [...sleepers].filter((id) => !predicted.has(id)),
+    unobservedQuiet,
     falsePositives,
     missed,
+    missedMembers: missed.map(describeMiss),
+    memberSignalCoverage,
     signalTypes: [
       ...new Set(
         state.campaignData.campaigns.flatMap((campaign) =>
@@ -251,6 +309,7 @@ export function computeMetricsForState(state) {
     seed: state.seed,
     size: state.size,
     campaignSize: state.campaignSize,
+    scenario: state.scenario,
     simulatedAt: state.simulatedAt,
     generatedAt: new Date().toISOString(),
     campaign,
@@ -276,9 +335,9 @@ function stats(values) {
   };
 }
 
-export function computeMetricsAcrossSeeds({ seeds, size, campaignSize }) {
+export function computeMetricsAcrossSeeds({ seeds, size, campaignSize, scenario = 'obvious' }) {
   const results = seeds.map((seed) => {
-    const state = buildSimulation({ seed, size, campaignSize });
+    const state = buildSimulation({ seed, size, campaignSize, scenario });
     return computeMetricsForState(state);
   });
 
@@ -289,16 +348,23 @@ export function computeMetricsAcrossSeeds({ seeds, size, campaignSize }) {
 
   return {
     generatedAt: new Date().toISOString(),
+    scenario,
     size,
     campaignSize,
     seeds: results.map((result) => ({
       seed: result.seed,
+      scenario: result.scenario,
       campaignPrecision: result.campaign.precision,
       campaignRecall: result.campaign.recall,
       observableRecall: result.campaign.observableRecall,
       predictedCampaigns: result.campaign.predictedCampaigns,
       predictedMembers: result.campaign.predictedMembers,
+      activeTruthMembers: result.campaign.activeTruthMembers,
+      quietMembers: result.campaign.quietMembers,
+      unobservedQuiet: result.campaign.unobservedQuiet,
       sleeperMembers: result.campaign.sleeperMembers,
+      missedMembers: result.campaign.missedMembers,
+      signalTypes: result.campaign.signalTypes,
       newcomerFalseFlagRate: result.newcomerFalseFlag.rate,
       flaggedNewcomers: result.newcomerFalseFlag.flagged,
       newcomersEvaluated: result.newcomerFalseFlag.total,
@@ -328,7 +394,19 @@ export function computeMetricsAcrossSeeds({ seeds, size, campaignSize }) {
       explanationCompletenessMin: round(Math.min(...explanationRates)),
       hardCasesPassedTotal: results.reduce((sum, result) => sum + result.hardCasesPassed, 0),
       hardCasesTotal: results.reduce((sum, result) => sum + result.hardCasesTotal, 0),
+      missedMembersTotal: results.reduce(
+        (sum, result) => sum + result.campaign.missedMembers.length,
+        0,
+      ),
+      unobservedQuietTotal: results.reduce(
+        (sum, result) => sum + result.campaign.unobservedQuiet.length,
+        0,
+      ),
+      unobservedSleepersTotal: results.reduce(
+        (sum, result) => sum + result.campaign.unobservedSleepers.length,
+        0,
+      ),
     },
-    note: 'Each seed rebuilds the whole simulation independently. Metrics are measured against simulator ground truth, which real deployments would not have. Recall includes campaign sleeper accounts that never posted or signed; observable recall covers the members who left a trace.',
+    note: 'Each seed rebuilds the whole simulation independently. Metrics are measured against simulator ground truth, which real deployments would not have. Recall includes campaign sleeper accounts that never posted or signed; observable recall covers the members who left a trace. Missed accounts list the exact ground-truth members the detector did not group and why.',
   };
 }

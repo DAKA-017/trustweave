@@ -6,8 +6,15 @@ import { getCampaigns } from '../controllers/campaigns-controller.js';
 import { getRecords, postRecord } from '../controllers/records-controller.js';
 import { getMetrics } from '../controllers/metrics-controller.js';
 import { getExplainer } from '../controllers/demo-controller.js';
+import {
+  getVerifyHistory,
+  getVerifyLatest,
+  postVerifyRun,
+} from '../controllers/verify-controller.js';
 
 const router = Router();
+const wrap = (handler) => (req, res, next) =>
+  Promise.resolve(handler(req, res, next)).catch(next);
 
 router.get('/health', getHealth);
 router.post('/simulate', postSimulate);
@@ -20,5 +27,8 @@ router.get('/records', getRecords);
 router.post('/records', postRecord);
 router.get('/metrics', getMetrics);
 router.get('/demo/explainer', getExplainer);
+router.get('/verify/latest', getVerifyLatest);
+router.get('/verify/history', getVerifyHistory);
+router.post('/verify/run', wrap(postVerifyRun));
 
 export default router;

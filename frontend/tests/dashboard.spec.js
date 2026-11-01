@@ -1,12 +1,24 @@
 import { test, expect } from "@playwright/test";
 
 const API_BASE = "http://localhost:5050/api";
+const SESSION = "playwright-dashboard";
+const SESSION_HEADER = { "X-TrustWeave-Session": SESSION };
+const BASE_WORLD = {
+  seed: 42,
+  size: 30,
+  campaignSize: 12,
+  scenario: "obvious",
+};
 
 test.describe.configure({ mode: "serial" });
 
-test.beforeEach(async ({ request, page }) => {
+test.beforeEach(async ({ request, page, context }) => {
+  await context.addInitScript((sessionId) => {
+    window.sessionStorage.setItem("trustweave-session", sessionId);
+  }, SESSION);
   const reset = await request.post(`${API_BASE}/simulate`, {
-    data: { seed: 42, size: 30, campaignSize: 12 },
+    headers: SESSION_HEADER,
+    data: BASE_WORLD,
   });
   expect(reset.ok()).toBeTruthy();
   await page.goto("/");
@@ -17,8 +29,8 @@ test.beforeEach(async ({ request, page }) => {
 test.afterAll(async () => {
   await fetch(`${API_BASE}/simulate`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ seed: 42, size: 30, campaignSize: 12 }),
+    headers: { "Content-Type": "application/json", ...SESSION_HEADER },
+    body: JSON.stringify(BASE_WORLD),
   });
 });
 
@@ -156,9 +168,9 @@ test("keeps neutral newcomers unblocked and signs a sponsor vouch", async ({
   await expect(
     page.getByRole("heading", { level: 1, name: "Newcomer lane" }),
   ).toBeVisible();
-  await expect(page.getByText("12 neutral newcomer(s)")).toBeVisible();
+  await expect(page.getByText("12 neutral newcomers")).toBeVisible();
   await expect(
-    page.getByText("No history. Treated as neutral.").first(),
+    page.getByText("No signed records yet. Treated as neutral.").first(),
   ).toBeVisible();
 
   await page
@@ -168,7 +180,9 @@ test("keeps neutral newcomers unblocked and signs a sponsor vouch", async ({
   await expect(
     page.getByText(/Vouch signed · r_.+ · signature valid · active/),
   ).toBeVisible();
-  await expect(page.getByText("No history. Treated as neutral.").first()).toBeVisible();
+  await expect(
+    page.getByText("No signed records yet. Treated as neutral.").first(),
+  ).toBeVisible();
 });
 
 test("demonstrates signature and hash-chain rejection", async ({ page }) => {
@@ -290,7 +304,9 @@ test("keeps a signed record after a page reload", async ({ page, request }) => {
   await expect(page.locator("#records-project")).toHaveValue("p07");
   await expect(page.getByText(recordId, { exact: true })).toBeVisible();
 
-  const log = await request.get(`${API_BASE}/records?projectId=p07`);
+  const log = await request.get(`${API_BASE}/records?projectId=p07`, {
+    headers: SESSION_HEADER,
+  });
   const body = await log.json();
   const ids = body.log.entries.map((entry) => entry.record.id);
   expect(ids).toContain(recordId);
@@ -397,7 +413,7 @@ test("rebuilds the simulation from a new seed and measures across seeds", async 
 
   await expect(
     page.getByText(
-      "Rebuilt seed 99 with 20 projects and 1 campaign(s) detected.",
+      "Rebuilt seed 99 with 20 projects and 1 campaign detected in the Obvious campaign.",
     ),
   ).toBeVisible();
   await expect(page.getByText("seed 99", { exact: true }).first()).toBeVisible();
@@ -406,54 +422,28 @@ test("rebuilds the simulation from a new seed and measures across seeds", async 
   await expect(
     page.getByRole("heading", { name: "Across seeds" }),
   ).toBeVisible();
-  await expect(page.getByText("Precision mean")).toBeVisible();
-  await expect(page.getByText("Max newcomer false flags")).toBeVisible();
-  await expect(page.getByText("seed 2026")).toBeVisible();
-});
-
-test("runs every live verification check on the page", async ({ page }) => {
-  await page.goto("/verify");
+  await expect(page.getByText("Precision mean").first()).toBeVisible();
   await expect(
-    page.getByRole("heading", { level: 1, name: "Live verification" }),
+    page.getByText("Max newcomer false flags").first(),
+  ).toBeVisible();
+  await expect(page.getByText("seed 2026").first()).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Stealth campaign" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText(/Missed:.*nova-build-10.*quiet/).first(),
   ).toBeVisible();
 
-  await expect(page.getByTestId("verify-score")).toHaveText("12 / 12 passed", {
-    timeout: 60000,
-  });
-
-  for (const id of [
-    "persist",
-    "load",
-    "graph",
-    "trust",
-    "simulator",
-    "campaign",
-    "provenance",
-    "newcomer",
-    "records",
-    "revocation",
-    "tamper",
-    "sign",
-  ]) {
-    await expect(page.getByTestId(`verify-status-${id}`)).toHaveAttribute(
-      "data-status",
-      "pass",
-    );
-  }
-
+  await page.locator("#scenario-input").selectOption("stealth");
+  await page.locator("#seed-input").fill("42");
+  await page.locator("#size-input").selectOption("30");
+  await page.locator("#campaign-size-input").selectOption("12");
+  await page.getByRole("button", { name: "Rebuild simulation" }).click();
   await expect(
-    page.getByTestId("verify-detail-persist"),
-  ).toContainText("after");
+    page.getByText(/detected in the Stealth campaign\./),
+  ).toBeVisible();
   await expect(
-    page.getByTestId("verify-detail-trust"),
-  ).toContainText("mutual");
-  await expect(
-    page.getByTestId("verify-detail-simulator"),
-  ).toContainText("identical");
-  await expect(
-    page.getByTestId("verify-detail-provenance"),
-  ).toContainText("evidence refs");
-  await expect(
-    page.getByTestId("verify-detail-revocation"),
-  ).toContainText("inactive");
+    page.getByText("Missed ground-truth accounts (3)"),
+  ).toBeVisible({ timeout: 30000 });
+  await expect(page.getByText(/c_campaign_10/).first()).toBeVisible();
 });

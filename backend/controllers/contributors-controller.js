@@ -12,7 +12,9 @@ import {
 
 export function getAssessment(req, res) {
   const query = parseOrThrow(assessmentQuerySchema, req.query);
-  const { project, contributor, assessment, state } = simulationHost.getAssessment(
+  const { state, readOnly } = simulationHost.resolve(req);
+  const { project, contributor, assessment } = simulationHost.getAssessment(
+    state,
     query.asProject,
     req.params.id,
   );
@@ -24,6 +26,7 @@ export function getAssessment(req, res) {
 
   res.json({
     simulation: simulationMeta(state),
+    readOnly,
     contributor: contributorSummary(contributor),
     evaluatingProject: { id: project.id, name: project.name },
     assessment,
@@ -34,7 +37,7 @@ export function getAssessment(req, res) {
 const DAY = 24 * 60 * 60 * 1000;
 
 export function getNewcomers(req, res) {
-  const state = simulationHost.ensureState();
+  const { state, readOnly } = simulationHost.resolve(req);
   const now = new Date(state.simulatedAt);
   const campaignMembers = new Set(
     state.campaignData.campaigns.flatMap((campaign) => campaign.memberContributorIds),
@@ -47,7 +50,7 @@ export function getNewcomers(req, res) {
     );
     if (ageDays > 90) continue;
     if (campaignMembers.has(contributor.id)) continue;
-    const { assessment } = simulationHost.getAssessment('p10', contributor.id);
+    const { assessment } = simulationHost.getAssessment(state, 'p10', contributor.id);
     if (assessment.outcome !== 'normal_review') continue;
     if ((assessment.signals ?? []).length > 0) continue;
 
@@ -64,6 +67,7 @@ export function getNewcomers(req, res) {
 
   res.json({
     simulation: simulationMeta(state),
+    readOnly,
     newcomers,
     sponsorOptions: sponsorOptions(state),
     sponsorAction: {

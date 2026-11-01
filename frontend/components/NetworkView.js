@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useApiResource } from "@/hooks/useApiResource";
 import { api } from "@/lib/api";
+import { plural } from "@/lib/format";
 import { PageHeader, Panel, Stat } from "@/components/ui";
 import { EmptyState, ErrorState, LoadingState } from "@/components/States";
 import snapshot from "@/lib/snapshot.json";
@@ -224,7 +225,7 @@ export function NetworkView({
             className="font-mono text-[10px] text-muted"
           >
             {matchingProjects.length} of {projects.length} projects ·{" "}
-            {visibleEdges.length} of {edges.length} links shown
+            {visibleEdges.length} of {plural(edges.length, "link")} shown
           </span>
 
           {(query || onlySelected || showAllLinks) && (
@@ -404,12 +405,13 @@ export function NetworkView({
                       {project.name}
                     </span>
                     <span className="font-mono text-[10px] text-muted">
-                      {project.id} · {project.maintainers.length} maintainer(s)
+                      {project.id} ·{" "}
+                      {plural(project.maintainers.length, "maintainer")}
                     </span>
                   </span>
                   <span className="font-mono text-[10px] text-muted">
                     {project.counts.contributors} people ·{" "}
-                    {project.trustConfig.length} links
+                    {plural(project.trustConfig.length, "link")}
                   </span>
                 </button>
               </li>

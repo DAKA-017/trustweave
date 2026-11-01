@@ -9,7 +9,7 @@ import { projectSummary, simulationMeta } from './helpers.js';
 
 export function getRecords(req, res) {
   const query = parseOrThrow(recordsQuerySchema, req.query);
-  const state = simulationHost.ensureState();
+  const { state, readOnly } = simulationHost.resolve(req);
 
   if (!query.projectId) {
     if (query.tamper !== 'none') {
@@ -41,6 +41,7 @@ export function getRecords(req, res) {
       null;
     return res.json({
       simulation: simulationMeta(state),
+      readOnly,
       projects,
       defaultProjectId,
       note: 'Pass ?projectId=... to inspect the full log. Pass &tamper=signature or &tamper=chain for the tamper demo.',
@@ -57,6 +58,7 @@ export function getRecords(req, res) {
 
   return res.json({
     simulation: simulationMeta(state),
+    readOnly,
     project: projectSummary(state, project),
     tamper: query.tamper,
     demoOnly: query.tamper !== 'none',
@@ -70,11 +72,11 @@ export function getRecords(req, res) {
 
 export function postRecord(req, res) {
   const body = parseOrThrow(createRecordBodySchema, req.body ?? {});
-  const { entry, verification } = simulationHost.appendRecord(body);
+  const { entry, verification } = simulationHost.appendRecord(req, body);
   res.status(201).json({
     record: entry.record,
     hash: entry.hash,
     verification,
-    note: 'Signed with the simulated project key and appended on the simulation host. Nothing was posted to a real repository.',
+    note: 'Signed with the simulated project key and appended in your own sandbox. Nothing was posted to a real repository.',
   });
 }

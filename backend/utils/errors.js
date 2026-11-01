@@ -15,3 +15,7 @@ export function notFound(message) {
 export function badRequest(message, details) {
   return new ApiError(400, 'BAD_REQUEST', message, details);
 }
+
+export function forbidden(message, details) {
+  return new ApiError(403, 'READ_ONLY_WORLD', message, details);
+}

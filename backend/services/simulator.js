@@ -83,6 +83,32 @@ function campaignContent() {
   return `This pull request improves performance, fixes critical bugs, updates documentation, adds missing tests, and refactors utility functions for clarity and maintainability. It also removes duplicate code paths and makes the build faster. No behavior changes are intended.`;
 }
 
+const STEALTH_SWAPS = [
+  ['adjusts', 'tunes'],
+  ['tidying', 'cleaning'],
+  ['slightly', 'a little'],
+  ['duplicate', 'repeated'],
+  ['clarifying', 'explaining'],
+  ['intended', 'expected'],
+];
+
+/**
+ * Deliberately mild rewording. Variant pairs kept per member land either just
+ * above or below the 0.82 similarity threshold; the detector thresholds are
+ * never changed for this scenario.
+ */
+function stealthContent(projectName, variant, note) {
+  let text = `This pull request adjusts performance and maintainability in ${projectName} by tidying utility functions, adding regression coverage for the edge cases reported last month, and clarifying inline documentation around the retry loop. It removes a duplicate code path, reuses the existing buffer instead of allocating a new one, and makes the build slightly faster. The change also documents the failure modes with examples so future maintainers can reason about the behavior. No functional behavior changes are intended, and the existing test suite still passes.`;
+  for (let index = 0; index < variant; index += 1) {
+    const [from, to] = STEALTH_SWAPS[index % STEALTH_SWAPS.length];
+    text = text.replace(from, to);
+  }
+  if (note) {
+    text += ` Context note ${note} covers ${projectName} fixtures, local benchmark numbers for buffer reuse, and the extra regression test that exercises the empty input path.`;
+  }
+  return text;
+}
+
 function aiAssistedContent(projectName, index) {
   return `I used an AI coding assistant to draft an accessibility audit for ${projectName}; I then reviewed every change, ran the test suite, and fixed the contrast issue it found. Details are in the changelog entry ${index}. This note describes how the patch was prepared, not how it should be judged.`;
 }
@@ -95,12 +121,16 @@ export function buildSimulation({
   seed = 42,
   size = 30,
   campaignSize = 12,
+  scenario = 'obvious',
   now = SIM_NOW,
 } = {}) {
   if (!Number.isInteger(seed) || seed < 1) throw new Error('seed must be a positive integer');
   if (!Number.isInteger(size) || size < 20 || size > 50) throw new Error('size must be between 20 and 50');
   if (!Number.isInteger(campaignSize) || campaignSize < 10 || campaignSize > 15) {
     throw new Error('campaignSize must be between 10 and 15');
+  }
+  if (scenario !== 'obvious' && scenario !== 'stealth') {
+    throw new Error('scenario must be "obvious" or "stealth"');
   }
 
   const rng = mulberry32(seed);
@@ -115,16 +145,27 @@ export function buildSimulation({
     return contributor;
   };
 
-  // Campaign accounts: new, synchronized, and the only ground-truth campaign.
+  const stealth = scenario === 'stealth';
+
+  // Campaign accounts: new and synchronized in the obvious scenario, older and
+  // spread out in stealth. Three stealth accounts stay quiet enough to leave no
+  // behavioral signal, so the detector honestly misses them.
   const campaignMembers = Array.from(
     { length: campaignSize },
     (_, index) => `c_campaign_${pad(index + 1)}`,
+  );
+  const quietCampaignMembers = stealth ? campaignMembers.slice(-3) : [];
+  const quietMemberSet = new Set(quietCampaignMembers);
+  const activeCampaignMembers = campaignMembers.filter(
+    (id) => !quietMemberSet.has(id),
   );
   campaignMembers.forEach((id, index) => {
     addContributor(
       id,
       `nova-build-${pad(index + 1)}`,
-      daysAgoIso(nowMs, 2 + (index % 8), index * 37 * MINUTE),
+      stealth
+        ? daysAgoIso(nowMs, 48 + index * 3)
+        : daysAgoIso(nowMs, 2 + (index % 8), index * 37 * MINUTE),
     );
   });
 
@@ -185,7 +226,7 @@ export function buildSimulation({
   const names = shuffle(rng, PROJECT_NAMES).slice(0, size);
 
   const campaignGroups = [[], [], []];
-  campaignMembers.forEach((member, index) => {
+  activeCampaignMembers.forEach((member, index) => {
     campaignGroups[index % 3].push(member);
   });
 
@@ -195,7 +236,7 @@ export function buildSimulation({
   const maintainers = new Map();
   maintainers.set('p01', ['c_base_01']);
   maintainers.set('p02', ['c_base_02']);
-  maintainers.set('p03', [campaignMembers[0]]);
+  maintainers.set('p03', [activeCampaignMembers[0]]);
   maintainers.set('p04', campaignGroups[0]);
   maintainers.set('p05', campaignGroups[1]);
   maintainers.set('p06', ['c_base_03']);
@@ -454,22 +495,81 @@ export function buildSimulation({
   });
 
   const campaignTargetProjects = allProjectIds.slice(0, Math.min(size, 24));
-  const campaignStart = nowMs - 16 * HOUR;
-  campaignMembers.forEach((contributorId, memberIndex) => {
-    campaignTargetProjects.forEach((projectId, projectIndex) => {
-      addPr({
-        projectId,
-        contributorId,
-        createdAt: new Date(
-          campaignStart + memberIndex * 18 * MINUTE + projectIndex * 20 * 1000,
-        ).toISOString(),
-        contentSample: campaignContent(),
-        changedPathsSummary: 'src/core/perf.js, docs/README.md, tests/perf.test.js',
-        prSize: intBetween(rng, 20, 45),
-        outcome: 'open',
+  if (stealth) {
+    // Two PRs per day for twelve days keeps every 48-hour window below the
+    // burst threshold, and account age keeps new-account sync from firing.
+    // Group 0 reuses identical wording across projects, so its pairs sit just
+    // above 0.82. Groups 1 and 2 add a per-PR note and stay just below 0.82.
+    const stealthVariantFor = (memberIndex) => (memberIndex % 3) * 2;
+    activeCampaignMembers.forEach((contributorId, memberIndex) => {
+      const mergeEvery = memberIndex % 2 === 0 ? 8 : 4;
+      const hasPerPrNote = memberIndex % 3 !== 0;
+      campaignTargetProjects.forEach((projectId, projectIndex) => {
+        addPr({
+          projectId,
+          contributorId,
+          createdAt: daysAgoIso(
+            nowMs,
+            34 - Math.floor(projectIndex / 2),
+            (memberIndex * 23 + projectIndex * 3) * MINUTE,
+          ),
+          contentSample: stealthContent(
+            projectLabel(projectId),
+            stealthVariantFor(memberIndex),
+            hasPerPrNote ? projectIndex + 1 : null,
+          ),
+          changedPathsSummary: 'src/core/perf.js, docs/README.md, tests/perf.test.js',
+          prSize: intBetween(rng, 12, 40),
+          outcome:
+            projectIndex % mergeEvery === mergeEvery - 1 ? 'merged' : 'closed',
+        });
       });
     });
-  });
+
+    // Quiet members post little, never trigger a signal, and are not vouched
+    // into the ring. They stay in ground truth so the miss is visible.
+    quietCampaignMembers.forEach((contributorId, memberIndex) => {
+      const handle = contributors.get(contributorId).handle;
+      for (let index = 0; index < 4; index += 1) {
+        const projectId =
+          contributionProjects[(memberIndex * 5 + index) % contributionProjects.length];
+        addPr({
+          projectId,
+          contributorId,
+          createdAt: daysAgoIso(
+            nowMs,
+            50 - index * 6,
+            (memberIndex * 31 + index * 11) * MINUTE,
+          ),
+          contentSample: baseContent(
+            handle,
+            projectLabel(projectId),
+            300 + memberIndex * 7 + index,
+          ),
+          changedPathsSummary: pathsFor(projectId, `quiet-${index + 1}`),
+          prSize: intBetween(rng, 4, 20),
+          outcome: index === 0 ? 'merged' : 'closed',
+        });
+      }
+    });
+  } else {
+    const campaignStart = nowMs - 16 * HOUR;
+    campaignMembers.forEach((contributorId, memberIndex) => {
+      campaignTargetProjects.forEach((projectId, projectIndex) => {
+        addPr({
+          projectId,
+          contributorId,
+          createdAt: new Date(
+            campaignStart + memberIndex * 18 * MINUTE + projectIndex * 20 * 1000,
+          ).toISOString(),
+          contentSample: campaignContent(),
+          changedPathsSummary: 'src/core/perf.js, docs/README.md, tests/perf.test.js',
+          prSize: intBetween(rng, 20, 45),
+          outcome: 'open',
+        });
+      });
+    });
+  }
 
   const prsFor = (contributorId, projectId) =>
     pullRequests.filter(
@@ -582,7 +682,7 @@ export function buildSimulation({
   // Campaign accounts vouch for each other through projects they maintain,
   // plus a fresh sybil project. No normal project trusts any of these issuers.
   for (const projectId of ['p03', 'p04', 'p05', 'p09']) {
-    for (const subject of campaignMembers) {
+    for (const subject of activeCampaignMembers) {
       addRecord(projectId, subject, 'vouch', 'campaign_trust', {
         evidence: [
           {
@@ -620,6 +720,7 @@ export function buildSimulation({
     seed,
     size,
     campaignSize,
+    scenario,
     simulatedAt: nowDate.toISOString(),
     projects,
     contributors,
@@ -631,6 +732,8 @@ export function buildSimulation({
     clusterCache: new Map(),
     groundTruth: {
       campaignMembers,
+      activeCampaignMembers,
+      quietCampaignMembers,
       sleeperCampaignMembers,
       legitNewcomers,
       humanSpamId: hardCases.humanSpam,

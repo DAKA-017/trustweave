@@ -11,6 +11,7 @@ export function simulationMeta(state) {
     seed: state.seed,
     size: state.size,
     campaignSize: state.campaignSize,
+    scenario: state.scenario,
     simulatedAt: state.simulatedAt,
     counts: state.counts,
     note: state.note,

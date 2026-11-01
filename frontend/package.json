@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:e2e": "playwright test"
+    "icons": "node scripts/generate-icons.mjs",
+    "test:e2e": "playwright test",
+    "test:pwa": "playwright test -c playwright.pwa.config.js"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "^5.3.0",

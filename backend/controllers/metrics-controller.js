@@ -5,19 +5,23 @@ import { simulationMeta } from './helpers.js';
 
 export function getMetrics(req, res) {
   const query = parseOrThrow(metricsQuerySchema, req.query);
-  const state = simulationHost.ensureState();
+  const { state, readOnly } = simulationHost.resolve(req);
 
   if (query.multi === '1') {
+    const multi = simulationHost.getMultiMetrics(state);
     return res.json({
       simulation: simulationMeta(state),
-      multiSeed: simulationHost.getMultiMetrics(),
-      note: 'Each seed rebuilds the whole simulation. Results are compared with simulator ground truth; real deployments do not have that.',
+      readOnly,
+      multiSeed: multi.multiSeed,
+      scenarios: multi.scenarios,
+      note: 'Each seed rebuilds the whole simulation independently. Precision, recall and newcomer false-flag rates are measured for both the obvious and stealth scenarios against simulator ground truth; real deployments do not have those labels.',
     });
   }
 
   return res.json({
     simulation: simulationMeta(state),
-    metrics: simulationHost.getMetrics(),
+    readOnly,
+    metrics: simulationHost.getMetrics(state),
     note: 'Metrics compare detector and trust-engine output with the simulator ground truth for this seed.',
   });
 }

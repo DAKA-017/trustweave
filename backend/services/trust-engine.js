@@ -435,6 +435,12 @@ export function evaluateContributor({
       !item.type.startsWith('behavioral_signal:'),
   );
   const hasAnyRecord = targetRecords.length > 0;
+  const hasActivity = pullRequests.some(
+    (pullRequest) => pullRequest.contributorId === contributorId,
+  );
+  const neutralMessage = hasActivity
+    ? 'No signed records yet. Treated as neutral.'
+    : 'No history. Treated as neutral.';
   if (
     outcome === 'normal_review' &&
     !hasAnyRecord &&
@@ -444,7 +450,7 @@ export function evaluateContributor({
       reason(
         'newcomer_neutral',
         0,
-        'No history. Treated as neutral.',
+        neutralMessage,
         [{ kind: 'contributor', id: contributorId }],
       ),
     );
@@ -486,7 +492,7 @@ export function evaluateContributor({
         ? signals.length === 0 && negativeReasons.length === 0
           ? hasAnyRecord
             ? 'No countable negative evidence. Neutral by default.'
-            : 'No history. Treated as neutral.'
+            : neutralMessage
           : 'No countable negative evidence reached this project.'
         : undefined,
     summary,

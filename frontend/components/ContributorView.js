@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useApiResource } from "@/hooks/useApiResource";
 import { api } from "@/lib/api";
-import { formatDate, humanize, signalLabel } from "@/lib/format";
+import { formatDate, humanize, plural, signalLabel } from "@/lib/format";
 import { Button, PageHeader, Panel, Stat } from "@/components/ui";
 import { OutcomeBadge } from "@/components/OutcomeBadge";
 import { ReasonList } from "@/components/ReasonList";
@@ -134,7 +134,7 @@ export function ContributorView({
         )}
         <p className="mt-3 font-mono text-[10px] text-muted">
           {contributor.id} · account created {formatDate(contributor.accountCreatedAt)} ·{" "}
-          {recentPullRequests.length} recent pull request(s)
+          {plural(recentPullRequests.length, "recent pull request")}
         </p>
       </div>
 
@@ -180,8 +180,8 @@ export function ContributorView({
               Thresholds: caution at {assessment.summary.thresholds.caution},
               flagged at {assessment.summary.thresholds.flagged}, at least{" "}
               {assessment.summary.thresholds.minIndependentSources} independent
-              denouncement sources. {assessment.summary.ignoredRecords} record(s)
-              were ignored.
+              denouncement sources.{" "}
+              {plural(assessment.summary.ignoredRecords, "record")} ignored.
             </p>
           </Panel>
 

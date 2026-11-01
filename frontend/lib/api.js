@@ -1,5 +1,19 @@
-const BASE_URL =
+import { getSessionId, getWorld, rememberWorld } from "./session";
+
+const DEFAULT_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:5000/api";
+
+// The desktop wrapper starts the API on a free port and injects that base URL
+// through a preload bridge. Browsers never see this override.
+function resolveBaseUrl() {
+  if (typeof window !== "undefined") {
+    const injected = window.__TRUSTWEAVE_ENV__?.apiBaseUrl;
+    if (typeof injected === "string" && injected.length > 0) return injected;
+  }
+  return DEFAULT_BASE_URL;
+}
+
+const BASE_URL = resolveBaseUrl();
 
 export class ApiError extends Error {
   constructor(message, { status = 0, code = "API_ERROR" } = {}) {
@@ -11,13 +25,20 @@ export class ApiError extends Error {
 }
 
 async function request(path, { method = "GET", body, signal } = {}) {
+  const headers = {};
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+  const sessionId = getSessionId();
+  if (sessionId) headers["X-TrustWeave-Session"] = sessionId;
+  const world = getWorld();
+  if (world) headers["X-TrustWeave-World"] = JSON.stringify(world);
+
   let response;
   try {
     response = await fetch(`${BASE_URL}${path}`, {
       method,
       signal,
       cache: "no-store",
-      headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+      headers,
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch (error) {
@@ -45,8 +66,11 @@ const id = encodeURIComponent;
 
 export const api = {
   getHealth: (signal) => request("/health", { signal }),
-  simulate: (params) =>
-    request("/simulate", { method: "POST", body: params }),
+  simulate: async (params) => {
+    const data = await request("/simulate", { method: "POST", body: params });
+    rememberWorld(data.simulation);
+    return data;
+  },
   getProjects: (signal) => request("/projects", { signal }),
   getProjectView: (projectId, signal) =>
     request(`/projects/${id(projectId)}/view`, { signal }),

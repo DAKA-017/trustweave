@@ -391,6 +391,26 @@ test('no records is neutral, with the exact newcomer note', () => {
   assert.equal(neutral.weight, 0);
 });
 
+test('activity without signed records says so instead of claiming no history', () => {
+  const world = createWorld({
+    projects: [{ id: 'a' }],
+    contributors: [{ id: 'x' }],
+  });
+
+  const assessment = world.assess('a', 'x', {
+    pullRequests: [{ contributorId: 'x' }],
+  });
+  assert.equal(assessment.outcome, 'normal_review');
+  assert.equal(
+    assessment.note,
+    'No signed records yet. Treated as neutral.',
+  );
+  const neutral = assessment.reasons.find((reason) => reason.type === 'newcomer_neutral');
+  assert.ok(neutral);
+  assert.equal(neutral.message, 'No signed records yet. Treated as neutral.');
+  assert.equal(neutral.weight, 0);
+});
+
 test('the same contributor is assessed differently by different projects', () => {
   const state = buildSimulation({ seed: 42, size: 30, campaignSize: 12 });
   const evaluate = (projectId) =>

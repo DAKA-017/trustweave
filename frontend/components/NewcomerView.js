@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useApiResource } from "@/hooks/useApiResource";
 import { api } from "@/lib/api";
-import { formatPercent } from "@/lib/format";
+import { formatPercent, plural } from "@/lib/format";
 import { Button, PageHeader, Panel } from "@/components/ui";
 import { OutcomeBadge } from "@/components/OutcomeBadge";
 import { ReasonList } from "@/components/ReasonList";
@@ -109,10 +109,10 @@ export function NewcomerView({ version, onSigned }) {
     <div className="min-w-0">
       <PageHeader
         title="Newcomer lane"
-        description="No history means normal review. Missing positive evidence is never treated as negative evidence, and newcomers are never auto-blocked."
+        description="No signed records yet means normal review. Missing positive evidence is never treated as negative evidence, and newcomers are never auto-blocked."
       >
         <span className="rounded border border-teal/40 bg-teal/10 px-2 py-1 font-mono text-[10px] text-teal">
-          {newcomers.length} neutral newcomer(s)
+          {plural(newcomers.length, "neutral newcomer")}
         </span>
       </PageHeader>
 
@@ -143,9 +143,9 @@ export function NewcomerView({ version, onSigned }) {
                       </span>
                     </div>
                     <p className="mt-0.5 font-mono text-[10px] text-muted">
-                      account age {newcomer.accountAgeDays} day(s) ·{" "}
-                      {newcomer.behavior.submissions} submission(s) ·{" "}
-                      {newcomer.behavior.projects} project(s) · merge rate{" "}
+                      account age {plural(newcomer.accountAgeDays, "day")} ·{" "}
+                      {plural(newcomer.behavior.submissions, "submission")} ·{" "}
+                      {plural(newcomer.behavior.projects, "project")} · merge rate{" "}
                       {formatPercent(newcomer.behavior.mergeRate)}
                     </p>
                   </div>

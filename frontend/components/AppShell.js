@@ -7,12 +7,12 @@ import {
   Network,
   Radar,
   ScrollText,
-  ShieldCheck,
   SlidersHorizontal,
   Sprout,
   UserSearch,
 } from "lucide-react";
 import { pathForView } from "@/lib/routes";
+import { InstallButton } from "./InstallButton";
 
 const NAV_ITEMS = [
   { id: "network", label: "Network", icon: Network },
@@ -22,7 +22,6 @@ const NAV_ITEMS = [
   { id: "newcomers", label: "Newcomers", icon: Sprout },
   { id: "records", label: "Records", icon: ScrollText },
   { id: "simulator", label: "Simulator", icon: SlidersHorizontal },
-  { id: "verify", label: "Verify", icon: ShieldCheck },
 ];
 
 function BrandMark() {
@@ -158,6 +157,10 @@ export function AppShell({
             <span className="whitespace-nowrap">Why not AI-text</span>
           </Link>
         </nav>
+
+        <div className="px-3 pb-3 md:px-3">
+          <InstallButton />
+        </div>
 
         <div className="hidden border-t border-line px-4 py-4 md:block">
           <p className="text-[11px] leading-relaxed text-muted">

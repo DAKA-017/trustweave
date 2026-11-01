@@ -4,15 +4,36 @@ import request from 'supertest';
 import { app } from '../app.js';
 import { config } from '../config/index.js';
 
+const API_SESSION = 'api-test-visitor';
+
+// Every request in this file acts as one visitor. Supertest only accepts
+// headers after a request method is chosen, so the proxy applies the session
+// header as soon as get/post/... is called.
+function asVisitor(builder) {
+  return new Proxy(builder, {
+    get(target, property) {
+      const value = target[property];
+      if (typeof value !== 'function') return value;
+      return (...args) => {
+        const test = value.apply(target, args);
+        if (test && typeof test.set === 'function') {
+          test.set('X-TrustWeave-Session', API_SESSION);
+        }
+        return test;
+      };
+    },
+  });
+}
+
 before(async () => {
-  await request(app)
+  await asVisitor(request(app))
     .post('/api/simulate')
     .send({ seed: 42, size: 30, campaignSize: 12 })
     .expect(200);
 });
 
 test('GET /api/health reports a simulation host with no authority', async () => {
-  const response = await request(app).get('/api/health').expect(200);
+  const response = await asVisitor(request(app)).get('/api/health').expect(200);
   assert.equal(response.body.status, 'ok');
   assert.equal(response.body.simulationHost, true);
   assert.equal(response.body.authority, false);
@@ -22,7 +43,7 @@ test('GET /api/health reports a simulation host with no authority', async () => 
 });
 
 test('GET /api/projects returns sanitized project summaries', async () => {
-  const response = await request(app).get('/api/projects').expect(200);
+  const response = await asVisitor(request(app)).get('/api/projects').expect(200);
   assert.equal(response.body.projects.length, 30);
   const project = response.body.projects.find((item) => item.id === 'p10');
   assert.ok(project);
@@ -33,7 +54,7 @@ test('GET /api/projects returns sanitized project summaries', async () => {
 });
 
 test('GET /api/projects/:id/view returns assessments from that project only', async () => {
-  const response = await request(app).get('/api/projects/p10/view').expect(200);
+  const response = await asVisitor(request(app)).get('/api/projects/p10/view').expect(200);
   assert.equal(response.body.project.id, 'p10');
   assert.ok(response.body.project.publicKey);
   assert.ok(response.body.effectiveTrust.length > 0);
@@ -62,18 +83,18 @@ test('GET /api/projects/:id/view returns assessments from that project only', as
   const toP08 = response.body.effectiveTrust.find((entry) => entry.projectId === 'p08');
   assert.ok(toP08);
   assert.ok(toP08.weight <= 1);
-  const reverse = await request(app).get('/api/projects/p08/view').expect(200);
+  const reverse = await asVisitor(request(app)).get('/api/projects/p08/view').expect(200);
   const toP10 = reverse.body.effectiveTrust.find((entry) => entry.projectId === 'p10');
   assert.ok(toP10);
   assert.equal(toP08.weight, toP10.weight);
 });
 
 test('the same contributor gets different outcomes as different projects', async () => {
-  const trusting = await request(app)
+  const trusting = await asVisitor(request(app))
     .get('/api/contributors/c_disputed/assessment')
     .query({ asProject: 'p06' })
     .expect(200);
-  const unaware = await request(app)
+  const unaware = await asVisitor(request(app))
     .get('/api/contributors/c_disputed/assessment')
     .query({ asProject: 'p08' })
     .expect(200);
@@ -89,14 +110,17 @@ test('the same contributor gets different outcomes as different projects', async
 });
 
 test('a newcomer with no history is neutral and the malicious denouncement is ignored', async () => {
-  const newcomer = await request(app)
+  const newcomer = await asVisitor(request(app))
     .get('/api/contributors/c_new_good/assessment')
     .query({ asProject: 'p10' })
     .expect(200);
   assert.equal(newcomer.body.assessment.outcome, 'normal_review');
-  assert.equal(newcomer.body.assessment.note, 'No history. Treated as neutral.');
+  assert.equal(
+    newcomer.body.assessment.note,
+    'No signed records yet. Treated as neutral.',
+  );
 
-  const honest = await request(app)
+  const honest = await asVisitor(request(app))
     .get(`/api/contributors/${encodeURIComponent('c_denounced')}/assessment`)
     .query({ asProject: 'p10' })
     .expect(200);
@@ -111,7 +135,7 @@ test('a newcomer with no history is neutral and the malicious denouncement is ig
 });
 
 test('GET /api/campaigns returns the coordinated campaign with evidence', async () => {
-  const response = await request(app).get('/api/campaigns').expect(200);
+  const response = await asVisitor(request(app)).get('/api/campaigns').expect(200);
   assert.equal(response.body.campaigns.length, 1);
   const campaign = response.body.campaigns[0];
   assert.equal(campaign.members.length, 12);
@@ -136,7 +160,7 @@ test('GET /api/campaigns returns the coordinated campaign with evidence', async 
 });
 
 test('GET /api/records verifies logs and shows rejection under tampering', async () => {
-  const summary = await request(app).get('/api/records').expect(200);
+  const summary = await asVisitor(request(app)).get('/api/records').expect(200);
   assert.ok(summary.body.projects.length === 30);
   assert.equal(summary.body.defaultProjectId, 'p07');
   const defaultProject = summary.body.projects.find(
@@ -145,7 +169,7 @@ test('GET /api/records verifies logs and shows rejection under tampering', async
   assert.ok(defaultProject.types.vouch > 0);
   assert.ok(defaultProject.types.denounce > 0);
 
-  const clean = await request(app)
+  const clean = await asVisitor(request(app))
     .get('/api/records')
     .query({ projectId: 'p07' })
     .expect(200);
@@ -153,7 +177,7 @@ test('GET /api/records verifies logs and shows rejection under tampering', async
   assert.equal(clean.body.log.counts.invalid, 0);
   assert.ok(clean.body.log.entries.every((entry) => entry.verification.active || entry.verification.expired || entry.verification.revoked));
 
-  const signature = await request(app)
+  const signature = await asVisitor(request(app))
     .get('/api/records')
     .query({ projectId: 'p07', tamper: 'signature' })
     .expect(200);
@@ -165,7 +189,7 @@ test('GET /api/records verifies logs and shows rejection under tampering', async
     ),
   );
 
-  const chain = await request(app)
+  const chain = await asVisitor(request(app))
     .get('/api/records')
     .query({ projectId: 'p07', tamper: 'chain' })
     .expect(200);
@@ -178,7 +202,7 @@ test('GET /api/records verifies logs and shows rejection under tampering', async
 });
 
 test('POST /api/records signs a new record and a later revoke reverses it', async () => {
-  const vouch = await request(app)
+  const vouch = await asVisitor(request(app))
     .post('/api/records')
     .send({
       issuerProjectId: 'p10',
@@ -192,7 +216,7 @@ test('POST /api/records signs a new record and a later revoke reverses it', asyn
   assert.equal(vouch.body.verification.integrity, 'valid');
   assert.equal(vouch.body.verification.active, true);
 
-  const revoke = await request(app)
+  const revoke = await asVisitor(request(app))
     .post('/api/records')
     .send({
       issuerProjectId: 'p10',
@@ -205,7 +229,7 @@ test('POST /api/records signs a new record and a later revoke reverses it', asyn
     .expect(201);
   assert.ok(revoke.body.record.signature);
 
-  const log = await request(app)
+  const log = await asVisitor(request(app))
     .get('/api/records')
     .query({ projectId: 'p10' })
     .expect(200);
@@ -218,7 +242,7 @@ test('POST /api/records signs a new record and a later revoke reverses it', asyn
 });
 
 test('revoked and expired records remain verifiable but inactive', async () => {
-  const revoked = await request(app)
+  const revoked = await asVisitor(request(app))
     .get('/api/records')
     .query({ projectId: 'p13' })
     .expect(200);
@@ -230,7 +254,7 @@ test('revoked and expired records remain verifiable but inactive', async () => {
   assert.equal(revokedEntry.verification.active, false);
   assert.ok(revokedEntry.verification.revokedBy);
 
-  const expired = await request(app)
+  const expired = await asVisitor(request(app))
     .get('/api/records')
     .query({ projectId: 'p12' })
     .expect(200);
@@ -243,36 +267,36 @@ test('revoked and expired records remain verifiable but inactive', async () => {
 });
 
 test('API errors use the documented shape', async () => {
-  const missingProject = await request(app)
+  const missingProject = await asVisitor(request(app))
     .get('/api/projects/nope/view')
     .expect(404);
   assert.equal(missingProject.body.error.code, 'NOT_FOUND');
   assert.equal(typeof missingProject.body.error.message, 'string');
 
-  const missingQuery = await request(app)
+  const missingQuery = await asVisitor(request(app))
     .get('/api/contributors/c_new_good/assessment')
     .expect(400);
   assert.equal(missingQuery.body.error.code, 'VALIDATION_ERROR');
 
-  const badSimulation = await request(app)
+  const badSimulation = await asVisitor(request(app))
     .post('/api/simulate')
     .send({ size: 10 })
     .expect(400);
   assert.equal(badSimulation.body.error.code, 'VALIDATION_ERROR');
 
-  const invalidJson = await request(app)
+  const invalidJson = await asVisitor(request(app))
     .post('/api/records')
     .set('Content-Type', 'application/json')
     .send('{"type":')
     .expect(400);
   assert.equal(invalidJson.body.error.code, 'INVALID_JSON');
 
-  const unknown = await request(app).get('/api/nope').expect(404);
+  const unknown = await asVisitor(request(app)).get('/api/nope').expect(404);
   assert.equal(unknown.body.error.code, 'NOT_FOUND');
 });
 
 test('CORS is restricted to the configured origin and TrustWeave deployments', async () => {
-  const allowed = await request(app)
+  const allowed = await asVisitor(request(app))
     .get('/api/health')
     .set('Origin', config.frontendOrigin)
     .expect(200);
@@ -281,7 +305,7 @@ test('CORS is restricted to the configured origin and TrustWeave deployments', a
     config.frontendOrigin,
   );
 
-  const preview = await request(app)
+  const preview = await asVisitor(request(app))
     .get('/api/health')
     .set('Origin', 'https://trustweave-preview-team.vercel.app')
     .expect(200);
@@ -290,7 +314,7 @@ test('CORS is restricted to the configured origin and TrustWeave deployments', a
     'https://trustweave-preview-team.vercel.app',
   );
 
-  const blocked = await request(app)
+  const blocked = await asVisitor(request(app))
     .get('/api/health')
     .set('Origin', 'https://evil.example')
     .expect(200);
@@ -298,7 +322,7 @@ test('CORS is restricted to the configured origin and TrustWeave deployments', a
 });
 
 test('GET /api/metrics reports measurements for one seed and across seeds', async () => {
-  const current = await request(app).get('/api/metrics').expect(200);
+  const current = await asVisitor(request(app)).get('/api/metrics').expect(200);
   assert.equal(current.body.metrics.campaign.precision, 1);
   assert.equal(current.body.metrics.campaign.recall, 0.8);
   assert.equal(current.body.metrics.campaign.observableRecall, 1);
@@ -312,7 +336,7 @@ test('GET /api/metrics reports measurements for one seed and across seeds', asyn
     current.body.metrics.hardCasesTotal,
   );
 
-  const multi = await request(app)
+  const multi = await asVisitor(request(app))
     .get('/api/metrics')
     .query({ multi: '1' })
     .expect(200);
@@ -322,14 +346,27 @@ test('GET /api/metrics reports measurements for one seed and across seeds', asyn
   assert.equal(multi.body.multiSeed.aggregate.newcomerFalseFlagRateMax, 0);
   assert.equal(multi.body.multiSeed.aggregate.explanationCompletenessMin, 1);
   assert.ok(multi.body.multiSeed.variance.campaignPrecision.range === 0);
+
+  const stealth = multi.body.scenarios.stealth;
+  assert.equal(stealth.scenario, 'stealth');
+  assert.equal(stealth.aggregate.campaignPrecisionMean, 1);
+  assert.ok(stealth.aggregate.campaignRecallMean < 1);
+  assert.ok(stealth.aggregate.observableRecallMean < 1);
+  assert.equal(stealth.aggregate.newcomerFalseFlagRateMax, 0);
+  assert.ok(stealth.aggregate.missedMembersTotal > 0);
+  assert.ok(stealth.aggregate.unobservedQuietTotal > 0);
+  for (const seedResult of stealth.seeds) {
+    assert.equal(seedResult.scenario, 'stealth');
+    assert.ok(seedResult.missedMembers.every((missed) => missed.reason.length > 0));
+  }
 });
 
 test('POST /api/simulate returns identical results for the same seed', async () => {
   const fingerprint = async () => {
     const [health, campaigns, records] = await Promise.all([
-      request(app).get('/api/health').expect(200),
-      request(app).get('/api/campaigns').expect(200),
-      request(app).get('/api/records').query({ projectId: 'p02' }).expect(200),
+      asVisitor(request(app)).get('/api/health').expect(200),
+      asVisitor(request(app)).get('/api/campaigns').expect(200),
+      asVisitor(request(app)).get('/api/records').query({ projectId: 'p02' }).expect(200),
     ]);
     return {
       counts: health.body.counts,
@@ -343,7 +380,7 @@ test('POST /api/simulate returns identical results for the same seed', async () 
   };
 
   try {
-    await request(app)
+    await asVisitor(request(app))
       .post('/api/simulate')
       .send({ seed: 7, size: 20, campaignSize: 10 })
       .expect(200);
@@ -351,16 +388,52 @@ test('POST /api/simulate returns identical results for the same seed', async () 
     assert.equal(first.members[0].length, 10);
     assert.ok(first.hashes.length > 10);
 
-    await request(app)
+    await asVisitor(request(app))
       .post('/api/simulate')
       .send({ seed: 7, size: 20, campaignSize: 10 })
       .expect(200);
     const second = await fingerprint();
     assert.deepEqual(second, first);
   } finally {
-    await request(app)
+    await asVisitor(request(app))
       .post('/api/simulate')
       .send({ seed: 42, size: 30, campaignSize: 12 })
+      .expect(200);
+  }
+});
+
+test('POST /api/simulate selects the stealth scenario inside the visitor sandbox', async () => {
+  try {
+    const simulated = await asVisitor(request(app))
+      .post('/api/simulate')
+      .send({ seed: 42, size: 30, campaignSize: 12, scenario: 'stealth' })
+      .expect(200);
+    assert.equal(simulated.body.simulation.scenario, 'stealth');
+    assert.equal(simulated.body.readOnly, false);
+
+    const health = await asVisitor(request(app)).get('/api/health').expect(200);
+    assert.equal(health.body.scenario, 'stealth');
+
+    const metrics = await asVisitor(request(app)).get('/api/metrics').expect(200);
+    assert.equal(metrics.body.metrics.scenario, 'stealth');
+    assert.equal(metrics.body.metrics.campaign.precision, 1);
+    assert.ok(metrics.body.metrics.campaign.observableRecall < 1);
+    assert.ok(metrics.body.metrics.campaign.unobservedQuiet.length > 0);
+    assert.ok(metrics.body.metrics.campaign.missedMembers.length > 0);
+    assert.equal(metrics.body.metrics.newcomerFalseFlag.rate, 0);
+    assert.equal(
+      metrics.body.metrics.campaign.signalTypes.includes('burst_timing'),
+      false,
+    );
+
+    await asVisitor(request(app))
+      .post('/api/simulate')
+      .send({ seed: 42, size: 30, campaignSize: 12, scenario: 'phantom' })
+      .expect(400);
+  } finally {
+    await asVisitor(request(app))
+      .post('/api/simulate')
+      .send({ seed: 42, size: 30, campaignSize: 12, scenario: 'obvious' })
       .expect(200);
   }
 });

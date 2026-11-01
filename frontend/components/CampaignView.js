@@ -2,7 +2,7 @@
 
 import { useApiResource } from "@/hooks/useApiResource";
 import { api } from "@/lib/api";
-import { formatDate, humanize, signalLabel } from "@/lib/format";
+import { formatDate, humanize, plural, signalLabel } from "@/lib/format";
 import { PageHeader, Panel, Stat } from "@/components/ui";
 import { OutcomeBadge } from "@/components/OutcomeBadge";
 import { EmptyState, ErrorState, LoadingState } from "@/components/States";
@@ -171,7 +171,7 @@ export function CampaignView({ version }) {
                             </span>
                             <span className="font-mono text-[10px] text-muted">
                               {signal.memberCount
-                                ? `${signal.memberCount} member(s) · `
+                                ? `${plural(signal.memberCount, "member")} · `
                                 : ""}
                               strength {Number(signal.weight).toFixed(2)}
                             </span>

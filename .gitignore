@@ -19,6 +19,14 @@ coverage/
 # deployment
 .vercel/
 
+# backend verifier reports
+backend/reports/
+
+# Electron wrapper build output
+desktop/dist/
+desktop/build/
+desktop/smoke.png
+
 # misc
 .DS_Store
 *.log

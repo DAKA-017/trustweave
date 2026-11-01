@@ -1,0 +1,12 @@
+{
+  "name": "trustweave",
+  "version": "1.0.0",
+  "private": true,
+  "description": "TrustWeave monorepo: simulation backend, Next.js dashboard and Electron wrapper",
+  "scripts": {
+    "app": "npm --prefix frontend run build && npm --prefix desktop start",
+    "app:smoke": "npm --prefix frontend run build && TRUSTWEAVE_SMOKE=1 npm --prefix desktop start",
+    "package:app": "npm --prefix frontend run build && npm --prefix desktop run package",
+    "package:app:dir": "npm --prefix frontend run build && npm --prefix desktop run package:dir"
+  }
+}

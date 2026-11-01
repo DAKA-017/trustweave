@@ -26,6 +26,11 @@ export function humanize(value) {
     .replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
+export function plural(count, singular, pluralForm = `${singular}s`) {
+  const value = Number.isFinite(Number(count)) ? Number(count) : 0;
+  return `${value} ${value === 1 ? singular : pluralForm}`;
+}
+
 export function signalLabel(type) {
   return humanize(type);
 }

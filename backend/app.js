@@ -27,7 +27,12 @@ app.use(
       return callback(null, isAllowedOrigin(origin));
     },
     methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type'],
+    allowedHeaders: [
+      'Content-Type',
+      'X-TrustWeave-Session',
+      'X-TrustWeave-World',
+      'X-Verify-Token',
+    ],
   }),
 );
 app.use(express.json({ limit: config.jsonBodyLimit }));

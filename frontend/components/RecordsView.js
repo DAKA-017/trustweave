@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useApiResource } from "@/hooks/useApiResource";
 import { api } from "@/lib/api";
-import { formatDate, shortHash } from "@/lib/format";
+import { formatDate, plural, shortHash } from "@/lib/format";
 import { Button, PageHeader, Panel, Stat } from "@/components/ui";
 import { EmptyState, ErrorState, LoadingState } from "@/components/States";
 import snapshot from "@/lib/snapshot.json";
@@ -360,8 +360,11 @@ export function RecordsView({
             {(summaries.data?.projects ?? []).map((project) => (
               <option key={project.id} value={project.id}>
                 {project.id} · {project.name} ·{" "}
-                {(project.counts?.valid ?? 0) + (project.counts?.invalid ?? 0)}{" "}
-                record(s) · {project.types?.vouch ?? 0} vouch /{" "}
+                {plural(
+                  (project.counts?.valid ?? 0) + (project.counts?.invalid ?? 0),
+                  "record",
+                )}{" "}
+                · {project.types?.vouch ?? 0} vouch /{" "}
                 {project.types?.denounce ?? 0} denounce
               </option>
             ))}
@@ -488,7 +491,7 @@ export function RecordsView({
                       <span>chain {verification?.chainIntact ? "intact" : "broken"}</span>
                       <span>prev {shortHash(record.previousRecordHash, 16)}</span>
                       <span>entry {shortHash(entry.hash, 16)}</span>
-                      <span>{record.evidence.length} evidence ref(s)</span>
+                      <span>{plural(record.evidence.length, "evidence ref")}</span>
                     </div>
 
                     {verification?.issues?.length > 0 && (

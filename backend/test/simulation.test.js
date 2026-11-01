@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildSimulation, SIM_NOW } from '../services/simulator.js';
 import { computeMetricsForState, computeMetricsAcrossSeeds } from '../services/metrics.js';
+import { jaccard, shingles } from '../utils/similarity.js';
 import { config } from '../config/index.js';
 
 test('invalid simulator parameters are rejected', () => {
@@ -141,4 +142,114 @@ test('different sizes and campaign sizes still produce one explainable campaign'
   assert.equal(metrics.campaign.observableRecall, 1);
   assert.equal(metrics.newcomerFalseFlag.rate, 0);
   assert.equal(metrics.hardCasesPassed, metrics.hardCasesTotal);
+});
+
+test('the stealth scenario is deterministic and keeps the obvious scenario unchanged', () => {
+  const first = buildSimulation({ seed: 42, size: 30, campaignSize: 12, scenario: 'stealth' });
+  const second = buildSimulation({ seed: 42, size: 30, campaignSize: 12, scenario: 'stealth' });
+  const obvious = buildSimulation({ seed: 42, size: 30, campaignSize: 12 });
+
+  assert.equal(first.scenario, 'stealth');
+  assert.equal(obvious.scenario, 'obvious');
+  assert.deepEqual(first.counts, second.counts);
+  assert.deepEqual(
+    first.campaignData.campaigns.map((campaign) => campaign.memberContributorIds),
+    second.campaignData.campaigns.map((campaign) => campaign.memberContributorIds),
+  );
+  assert.throws(
+    () => buildSimulation({ seed: 42, scenario: 'phantom' }),
+    /scenario must be "obvious" or "stealth"/,
+  );
+
+  // The obvious scenario still fires its original five-signal campaign.
+  assert.equal(obvious.campaignData.campaigns.length, 1);
+  const obviousSignals = new Set(
+    obvious.campaignData.campaigns[0].signalsFired.map((signal) => signal.type),
+  );
+  for (const type of [
+    'near_duplicate_content',
+    'burst_timing',
+    'new_accounts_in_sync',
+    'vouch_ring',
+    'high_volume_low_merge',
+  ]) {
+    assert.ok(obviousSignals.has(type), `obvious scenario lost ${type}`);
+  }
+});
+
+test('the stealth scenario spreads submissions over days and varies content similarity', () => {
+  const state = buildSimulation({ seed: 42, size: 30, campaignSize: 12, scenario: 'stealth' });
+  const campaign = state.campaignData.campaigns[0];
+  assert.ok(campaign, 'the stealth campaign should still be found');
+
+  // Campaign activity spans days, not a single 48-hour burst.
+  const start = new Date(campaign.window.start).getTime();
+  const end = new Date(campaign.window.end).getTime();
+  assert.ok(end - start > 10 * 24 * 60 * 60 * 1000);
+
+  // Identical-wording members sit at or above the threshold; members with a
+  // per-PR note sit below it. Thresholds themselves are untouched.
+  assert.equal(state.campaignData.config.similarityThreshold, 0.82);
+  const byMember = new Map();
+  for (const pr of state.pullRequests) {
+    if (!byMember.has(pr.contributorId)) byMember.set(pr.contributorId, []);
+    byMember.get(pr.contributorId).push(pr);
+  }
+  const redundant = state.groundTruth.activeCampaignMembers[0];
+  const reworded = state.groundTruth.activeCampaignMembers[1];
+  const comparisons = (contributorId) => {
+    const prs = byMember.get(contributorId);
+    return prs.flatMap((left, index) =>
+      prs.slice(index + 1).map((right) =>
+        jaccard(shingles(left.contentSample), shingles(right.contentSample)),
+      ),
+    );
+  };
+  const redundantScores = comparisons(redundant);
+  const rewordedScores = comparisons(reworded);
+  assert.ok(Math.max(...redundantScores) >= 0.82);
+  assert.ok(Math.min(...rewordedScores) < 0.82);
+  assert.ok(
+    redundantScores.filter((score) => score >= 0.82).length >
+      rewordedScores.filter((score) => score >= 0.82).length,
+  );
+});
+
+test('the stealth scenario reports honest misses and zero newcomer false flags across seeds', () => {
+  const multi = computeMetricsAcrossSeeds({
+    seeds: config.multiSeedList,
+    size: 30,
+    campaignSize: 12,
+    scenario: 'stealth',
+  });
+
+  assert.equal(multi.scenario, 'stealth');
+  assert.equal(multi.aggregate.seedsRun, config.multiSeedList.length);
+  assert.equal(multi.aggregate.campaignPrecisionMean, 1);
+  assert.equal(multi.aggregate.newcomerFalseFlagRateMax, 0);
+  assert.equal(multi.aggregate.explanationCompletenessMin, 1);
+  assert.equal(multi.aggregate.hardCasesPassedTotal, multi.aggregate.hardCasesTotal);
+  assert.ok(multi.aggregate.campaignRecallMean < 1);
+  assert.ok(multi.aggregate.observableRecallMean < 1);
+  assert.equal(multi.aggregate.unobservedQuietTotal, config.multiSeedList.length * 3);
+  assert.ok(multi.aggregate.unobservedSleepersTotal > 0);
+  assert.ok(multi.aggregate.missedMembersTotal > 0);
+
+  for (const seedResult of multi.seeds) {
+    const label = `seed ${seedResult.seed}`;
+    assert.equal(seedResult.scenario, 'stealth', label);
+    assert.equal(seedResult.campaignPrecision, 1, label);
+    assert.ok(seedResult.campaignRecall < 1, label);
+    assert.ok(seedResult.observableRecall < 1, label);
+    assert.equal(seedResult.newcomerFalseFlagRate, 0, label);
+    assert.equal(seedResult.quietMembers.length, 3, label);
+    assert.equal(seedResult.unobservedQuiet.length, 3, label);
+    assert.ok(seedResult.missedMembers.length >= 3, label);
+    assert.ok(seedResult.signalTypes.length >= 2, label);
+    assert.ok(seedResult.signalTypes.length < 5, label);
+    for (const missed of seedResult.missedMembers) {
+      assert.ok(missed.reason.length > 0, `${label}: ${missed.contributorId} needs a reason`);
+      assert.equal(missed.signalTypes.length, 0, label);
+    }
+  }
 });

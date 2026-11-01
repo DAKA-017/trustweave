@@ -2,7 +2,7 @@
 
 import { useApiResource } from "@/hooks/useApiResource";
 import { api } from "@/lib/api";
-import { formatDate } from "@/lib/format";
+import { formatDate, plural } from "@/lib/format";
 import { Button, PageHeader, Panel, Stat } from "@/components/ui";
 import { OutcomeBadge } from "@/components/OutcomeBadge";
 import { ReasonList } from "@/components/ReasonList";
@@ -67,9 +67,11 @@ export function ProjectView({
       <div className="mb-4 rounded-lg border border-line bg-panel px-4 py-3">
         <p className="text-xs leading-relaxed text-muted">
           This project listens to{" "}
-          <span className="font-mono text-ink">{effectiveTrust.length}</span>{" "}
-          other project(s) it trusts. People with no history stay neutral — no
-          history is not evidence against them.
+          <span className="font-mono text-ink">
+            {plural(effectiveTrust.length, "other project")}
+          </span>{" "}
+          it trusts. People without signed records stay neutral — missing
+          records are not evidence against them.
         </p>
       </div>
 
@@ -115,9 +117,9 @@ export function ProjectView({
                         </span>
                       </div>
                       <p className="mt-0.5 font-mono text-[10px] text-muted">
-                        {item.pullRequests.length} pull request(s) here · last{" "}
+                        {plural(item.pullRequests.length, "pull request")} here · last{" "}
                         {formatDate(latestPr?.createdAt)} ·{" "}
-                        {validRecords} signed record(s) used
+                        {plural(validRecords, "signed record")} used
                       </p>
                     </div>
                     <OutcomeBadge outcome={assessment.outcome} />

@@ -7,7 +7,7 @@ import {
 } from './helpers.js';
 
 export function getExplainer(req, res) {
-  const state = simulationHost.ensureState();
+  const { state, readOnly } = simulationHost.resolve(req);
   const aiId = state.groundTruth.aiAssistedId;
   const spamId = state.groundTruth.humanSpamId;
 
@@ -22,11 +22,12 @@ export function getExplainer(req, res) {
     });
   }
 
-  const aiAssessment = simulationHost.getAssessment('p10', aiId).assessment;
-  const spamAssessment = simulationHost.getAssessment('p10', spamId).assessment;
+  const aiAssessment = simulationHost.getAssessment(state, 'p10', aiId).assessment;
+  const spamAssessment = simulationHost.getAssessment(state, 'p10', spamId).assessment;
 
   return res.json({
     simulation: simulationMeta(state),
+    readOnly,
     title: 'Why AI-text detection is not enough',
     note: 'Both examples are simulated and judged only by submission behavior. No AI-text detector is used anywhere in TrustWeave.',
     aiAssisted: {

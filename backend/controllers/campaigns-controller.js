@@ -2,9 +2,10 @@ import { simulationHost } from '../services/simulation-host.js';
 import { enrichCampaign, simulationMeta } from './helpers.js';
 
 export function getCampaigns(req, res) {
-  const state = simulationHost.ensureState();
+  const { state, readOnly } = simulationHost.resolve(req);
   res.json({
     simulation: simulationMeta(state),
+    readOnly,
     campaigns: state.campaignData.campaigns.map((campaign) =>
       enrichCampaign(state, campaign),
     ),

@@ -94,10 +94,20 @@ export const recordsQuerySchema = z.object({
   tamper: z.enum(['none', 'signature', 'chain']).default('none'),
 });
 
+export const SCENARIOS = Object.freeze(['obvious', 'stealth']);
+
 export const simulateBodySchema = z.object({
   seed: z.number().int().min(1).max(2_147_483_647).optional(),
   size: z.number().int().min(20).max(50).optional(),
   campaignSize: z.number().int().min(10).max(15).optional(),
+  scenario: z.enum(SCENARIOS).optional(),
+});
+
+export const worldQuerySchema = z.object({
+  seed: z.coerce.number().int().min(1).max(2_147_483_647).optional(),
+  size: z.coerce.number().int().min(20).max(50).optional(),
+  campaignSize: z.coerce.number().int().min(10).max(15).optional(),
+  scenario: z.enum(SCENARIOS).optional(),
 });
 
 export const metricsQuerySchema = z.object({

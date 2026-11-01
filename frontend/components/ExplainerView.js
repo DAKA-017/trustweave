@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ArrowLeft, FlaskConical } from "lucide-react";
 import { useApiResource } from "@/hooks/useApiResource";
 import { api } from "@/lib/api";
-import { formatPercent, signalLabel } from "@/lib/format";
+import { formatPercent, plural, signalLabel } from "@/lib/format";
 import { PageHeader, Panel, Stat } from "@/components/ui";
 import { OutcomeBadge } from "@/components/OutcomeBadge";
 import { ReasonList } from "@/components/ReasonList";
@@ -34,7 +34,7 @@ function Example({ example, tone }) {
       </div>
 
       <p className="mt-2 font-mono text-[10px] text-muted">
-        account age {behavior.accountAgeDays} day(s) · signals{" "}
+        account age {plural(behavior.accountAgeDays, "day")} · signals{" "}
         {behavior.signalTypes.length === 0
           ? "none"
           : behavior.signalTypes.map(signalLabel).join(", ")}
@@ -57,9 +57,9 @@ function Example({ example, tone }) {
         <p className="mt-3 text-[11px] leading-relaxed text-muted">
           Neutral because this project has no signed records about the account,
           not because the account lacks activity. It is{" "}
-          {behavior.accountAgeDays} day(s) old with {behavior.merged} merged
-          submission(s), and missing records are never treated as negative
-          evidence.
+          {plural(behavior.accountAgeDays, "day")} old with{" "}
+          {plural(behavior.merged, "merged submission")}, and missing records
+          are never treated as negative evidence.
         </p>
       )}
     </Panel>
