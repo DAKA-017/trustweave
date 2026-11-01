@@ -6,6 +6,8 @@ import { errorHandler, notFoundHandler } from './middleware/error-handler.js';
 
 export const app = express();
 app.disable('x-powered-by');
+// Render proxies every request, so trust one hop to read the real client IP.
+app.set('trust proxy', 1);
 
 function isAllowedOrigin(origin) {
   if (!origin || origin === config.frontendOrigin) return true;
