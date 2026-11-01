@@ -7,6 +7,7 @@ export function getHealth(req, res) {
     readOnly,
     status: 'ok',
     service: 'trustweave-backend',
+    commit: process.env.RENDER_GIT_COMMIT || null,
     simulationHost: true,
     authority: false,
     simulated: true,
