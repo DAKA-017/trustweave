@@ -9,6 +9,9 @@ const MAX_EVIDENCE_LINES = 10;
 const truncate = (value, limit) =>
   value.length <= limit ? value : `${value.slice(0, limit - 1)}…`;
 
+const plural = (count, singular, pluralForm = `${singular}s`) =>
+  `${count} ${count === 1 ? singular : pluralForm}`;
+
 const repoPath = (owner, name) =>
   `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`;
 
@@ -90,7 +93,7 @@ function signalLines(signals) {
  */
 export function formatAssessment(assessment) {
   const { author, campaign, signals, counts, pullRequestsById } = assessment;
-  const scope = `${counts.pullRequests} pull requests across ${counts.repositories} repositories (last ${counts.lookbackDays} days)`;
+  const scope = `${plural(counts.pullRequests, 'pull request')} across ${plural(counts.repositories, 'repository', 'repositories')} (last ${plural(counts.lookbackDays, 'day')})`;
 
   if (!campaign) {
     const summary = `Checked ${scope} for @${author}. No campaign-level pattern reached the detector's thresholds.`;

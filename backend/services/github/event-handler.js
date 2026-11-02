@@ -1,3 +1,4 @@
+import { config } from '../../config/index.js';
 import { assessPullRequest } from './ingest.js';
 import {
   completeCheckRun,
@@ -35,6 +36,8 @@ export async function processPullRequestEvent(payload, { fetchImpl } = {}) {
     headSha: pullRequest.head.sha,
     fetchImpl,
   };
+  // Without this the check's "Details" link falls back to the App homepage.
+  const detailsUrl = `${config.frontendOrigin}/network`;
 
   if (pullRequest.draft) {
     const checkRun = await createCheckRun(target);
@@ -44,6 +47,7 @@ export async function processPullRequestEvent(payload, { fetchImpl } = {}) {
       conclusion: 'neutral',
       title: 'Draft pull request',
       summary: 'TrustWeave runs when the pull request is ready for review.',
+      detailsUrl,
     });
     return { checkRunId: checkRun.id, report: null };
   }
@@ -58,7 +62,12 @@ export async function processPullRequestEvent(payload, { fetchImpl } = {}) {
       fetchImpl,
     });
     const report = formatAssessment(assessment);
-    await completeCheckRun({ ...target, checkRunId: checkRun.id, ...report });
+    await completeCheckRun({
+      ...target,
+      checkRunId: checkRun.id,
+      ...report,
+      detailsUrl,
+    });
     return { checkRunId: checkRun.id, report };
   } catch (error) {
     console.error(
@@ -70,6 +79,7 @@ export async function processPullRequestEvent(payload, { fetchImpl } = {}) {
       conclusion: 'neutral',
       title: 'TrustWeave could not complete this check',
       summary: 'The behavioral check did not finish. No action is required.',
+      detailsUrl,
     }).catch((completeError) => {
       console.error(
         `[trustweave] Could not close GitHub check run ${checkRun.id}: ${completeError.message}`,

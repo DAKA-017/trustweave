@@ -322,6 +322,21 @@ test('an isolated author gets a neutral check, never a failure', async () => {
   assert.match(report.summary, /No campaign-level pattern/);
 });
 
+test('the summary pluralizes the scope at one', () => {
+  const report = formatAssessment({
+    author: 'solo',
+    campaign: null,
+    signals: [],
+    counts: { pullRequests: 1, repositories: 1, lookbackDays: 1 },
+    pullRequestsById: new Map(),
+  });
+
+  assert.match(
+    report.summary,
+    /Checked 1 pull request across 1 repository \(last 1 day\) for @solo\./,
+  );
+});
+
 test('a signed pull_request webhook posts and completes the check run', async () => {
   const response = await postWebhook(pullRequestPayload());
   assert.equal(response.status, 202);
@@ -338,6 +353,7 @@ test('a signed pull_request webhook posts and completes the check run', async ()
   assert.equal(completed.body.conclusion, 'action_required');
   assert.match(completed.body.output.summary, /Possibly coordinated/);
   assert.match(completed.body.output.text, /near_duplicate_content/);
+  assert.match(completed.body.details_url, /\/network$/);
 });
 
 test('an unsigned webhook is rejected without calling GitHub', async () => {
