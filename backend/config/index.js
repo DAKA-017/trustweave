@@ -68,8 +68,10 @@ export const config = Object.freeze({
   github: Object.freeze({
     appId: process.env.GITHUB_APP_ID || '',
     // PEM keys are usually stored with escaped newlines in env settings.
-    privateKey: (process.env.GITHUB_APP_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
-    webhookSecret: process.env.GITHUB_WEBHOOK_SECRET || '',
+    privateKey: (process.env.GITHUB_APP_PRIVATE_KEY || '').trim().replace(/\\n/g, '\n'),
+    // Hosting dashboards routinely keep a pasted trailing newline; GitHub signs
+    // without one, so an untrimmed secret would reject every delivery.
+    webhookSecret: (process.env.GITHUB_WEBHOOK_SECRET || '').trim(),
     apiBaseUrl: process.env.GITHUB_API_BASE_URL || 'https://api.github.com',
     lookbackDays: Math.max(1, intFromEnv('GITHUB_LOOKBACK_DAYS', 30)),
     maxRepositories: Math.min(
