@@ -64,4 +64,28 @@ export const config = Object.freeze({
     1000,
     intFromEnv('SEMANTIC_TIMEOUT_MS', 20000),
   ),
+  // Optional GitHub App. Empty values keep every GitHub route disabled.
+  github: Object.freeze({
+    appId: process.env.GITHUB_APP_ID || '',
+    // PEM keys are usually stored with escaped newlines in env settings.
+    privateKey: (process.env.GITHUB_APP_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
+    webhookSecret: process.env.GITHUB_WEBHOOK_SECRET || '',
+    apiBaseUrl: process.env.GITHUB_API_BASE_URL || 'https://api.github.com',
+    lookbackDays: Math.max(1, intFromEnv('GITHUB_LOOKBACK_DAYS', 30)),
+    maxRepositories: Math.min(
+      25,
+      Math.max(1, intFromEnv('GITHUB_MAX_REPOSITORIES', 10)),
+    ),
+    maxPullRequestsPerRepository: Math.min(
+      100,
+      Math.max(5, intFromEnv('GITHUB_MAX_PRS_PER_REPOSITORY', 40)),
+    ),
+    maxUserLookups: Math.min(
+      100,
+      Math.max(1, intFromEnv('GITHUB_MAX_USER_LOOKUPS', 25)),
+    ),
+    get configured() {
+      return Boolean(this.appId && this.privateKey && this.webhookSecret);
+    },
+  }),
 });

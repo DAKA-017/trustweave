@@ -4,7 +4,7 @@ A decentralized trust network for open source contributions, built as a determin
 
 TrustWeave has **no central authority and no global contributor score**. Every answer is computed *as a specific project*, from the signed records that project chooses to read, weighted by that project's own trust list. A contributor can be `caution` for one project and `normal_review` for another at the same moment.
 
-> **Simulation notice:** all projects, contributors, pull requests, keys, records and ground-truth labels are simulated in memory. The application is read-only with respect to real repositories and does not contact, read from, or post to one. When an embedding key is configured, only simulated PR text is sent to the embeddings provider for the optional semantic-cluster view. No AI-text detector or authorship classifier is used anywhere.
+> **Simulation notice:** all projects, contributors, pull requests, keys, records and ground-truth labels are simulated in memory. The application is read-only with respect to real repositories and does not contact, read from, or post to one. When an embedding key is configured, only simulated PR text is sent to the embeddings provider for the optional semantic-cluster view. No AI-text detector or authorship classifier is used anywhere. The one exception is opt-in: the optional GitHub App in §18 reads pull request metadata from repositories where it is installed and posts an advisory check run; it is disabled unless App credentials are configured.
 
 ## At a glance
 
@@ -23,7 +23,7 @@ TrustWeave has **no central authority and no global contributor score**. Every a
 | Backend | Node.js, Express 4 (ESM), Zod, Node `crypto` |
 | Frontend | Next.js 16 App Router, React 19, Tailwind CSS 4, lucide-react |
 | Storage | In-memory per visitor session; the default world is stateless and read-only. Restarting the backend clears sandboxes |
-| Credentials | Optional backend-only OpenAI key for semantic clusters; no GitHub credentials; no login; no database |
+| Credentials | Optional backend-only OpenAI key for semantic clusters; no GitHub credentials unless the optional GitHub App is configured (§18); no login; no database |
 | Semantic clusters | Optional embedding-based cross-project PR clustering; disabled and clearly labeled when no key is configured |
 | Verification | 12 backend-only checks: `npm run verify` (CLI), the verifier agent, and read-only `/api/verify/*` routes |
 | Reports | `backend/reports/verification-latest.json` and `.md` (git-ignored) |
@@ -75,6 +75,10 @@ SEMANTIC_SIMILARITY_THRESHOLD=0.86
 SEMANTIC_MIN_PROJECTS=3
 SEMANTIC_MIN_MEMBERS=3
 SEMANTIC_MAX_CLUSTERS=8
+# Optional GitHub App. Leave empty to keep every GitHub route disabled.
+GITHUB_APP_ID=
+GITHUB_APP_PRIVATE_KEY=
+GITHUB_WEBHOOK_SECRET=
 ```
 
 The backend exposes `http://localhost:5050/api/health`. Port 5000 is occupied by macOS ControlCenter (AirPlay Receiver) on the machine this was built on, so the demo uses **5050**. If port 5000 is free for you, you may switch `PORT` to 5000, but you must then also change the frontend API URL below and restart both processes. `FRONTEND_ORIGIN` must remain the exact origin of the dashboard because CORS is restricted to it.
@@ -200,6 +204,7 @@ backend/
     simulator.js         deterministic seeded world and hard cases
     simulation-host.js   in-memory host used by requests
     metrics.js           precision/recall/newcomer/explanation metrics
+    github/              optional GitHub App: auth, PR ingest, check runs, events
   models/schemas.js      Zod data-model and request validation
   middleware/            not-found and error formatting
   utils/                 canonical JSON, Ed25519, SHA-256, PRNG, similarity
@@ -385,6 +390,8 @@ All responses are JSON. Request validation uses Zod. The JSON body limit is 64 k
 | GET | `/api/verify/latest` | Latest backend verification run (read-only; `503` until the first run completes) |
 | GET | `/api/verify/history` | Last 20 in-memory verification runs, newest first |
 | POST | `/api/verify/run` | Run the checks now; requires `X-Verify-Token` = `VERIFY_TOKEN`, otherwise `403` |
+| POST | `/api/github/webhook` | Optional GitHub App webhook; verifies `X-Hub-Signature-256` and posts an advisory check run (§18) |
+| GET | `/api/github/setup` | Optional GitHub App Setup URL; renders the post-install page or JSON |
 
 Reads accept `?seed=&size=&campaignSize=&scenario=` or the same JSON in `X-TrustWeave-World`; without a session they resolve the shared **read-only** world. Writes also need `X-TrustWeave-Session: <id>`. A missing session fails with `403 READ_ONLY_WORLD`, and a malformed one with `400 BAD_REQUEST`.
 
@@ -419,7 +426,7 @@ cd frontend && npx eslint . && npm run build && npm run test:e2e && npm run test
 
 Verified in this build:
 
-- **78 backend tests pass** (Node test runner + Supertest): the original model, simulation, trust and campaign suites, plus backend verification coverage — all 12 checks pass in isolated sandboxes, identical seeds produce identical results, a broken signature and a broken hash chain each make the records check fail, verification routes stay read-only and the POST route stays closed without a token, two visitors' sandboxes never share writes, and a guard test fails if any frontend file imports/calls verification routes or names a check. The 10 semantic tests use deterministic stub embedders and a mocked fetch: they cover cross-project clustering, the project/member filters, meaning-only vs lexical pairs, campaign overlap, batching and response ordering, safe provider errors, the disabled API state, one embedding call per cached world, and a retryable 503 that never leaks the key.
+- **98 backend tests pass** (Node test runner + Supertest): the original model, simulation, trust and campaign suites, backend verification coverage, write rate limiting, and the GitHub App scaffold (JWT verification, timing-safe webhook signatures, PR-to-detector mapping, check-run creation and completion, delivery dedupe, draft handling, ignored events and the escaped Setup page through a stub transport) — all 12 checks pass in isolated sandboxes, identical seeds produce identical results, a broken signature and a broken hash chain each make the records check fail, verification routes stay read-only and the POST route stays closed without a token, two visitors' sandboxes never share writes, and a guard test fails if any frontend file imports/calls verification routes or names a check. The 10 semantic tests use deterministic stub embedders and a mocked fetch: they cover cross-project clustering, the project/member filters, meaning-only vs lexical pairs, campaign overlap, batching and response ordering, safe provider errors, the disabled API state, one embedding call per cached world, and a retryable 503 that never leaks the key.
 - **20 Playwright Chromium flows pass**: the 13 dashboard checks (including the semantic-cluster panel in both its disabled and fixture-backed enabled states), two interaction checks (hover tracing on the network map and the keyboard quick jump), and five public landing flows — the hero reaching `/network` with a live status, switching between the three real example assessments, falling back to the snapshot with a retry when the API is unreachable, serving the Open Graph card, sitemap, robots file and branded 404, and zero horizontal overflow at 390×844.
 - **3 production-build PWA checks pass** via `npm run test:pwa`: the manifest and every icon resolve with the right content type and `start_url` is `/network`, the service worker registers and caches the app shell including `/` and `/network` (with zero `/api/` entries), and an uncached navigation offline shows the `/offline` fallback.
 - **`npm run verify` reports 12/12** and exits 0; the startup run prints the same table. The CLI, the startup run, the agent and the token-guarded route all write `backend/reports/verification-latest.json` and `.md`.
@@ -563,7 +570,7 @@ An attacker who ages accounts, varies timing and content, builds plausible outsi
 - **Not a real P2P network.** One process hosts every simulated project. Gossip is simulated by pulling and verifying peer log copies; there is no libp2p, DHT, transport security or peer discovery.
 - **Not real cryptographic identity.** Ed25519 keys are valid cryptography, but they are deterministically derived for reproducibility. There is no key rotation, revocation of keys, hardware key storage or identity proof.
 - **No persistence.** Sandboxes and the read-only world cache are in process memory; restarting the backend clears them. A visitor's appended records do not follow them to another server instance, though the deterministic base world can always be rebuilt from the URL.
-- **No GitHub integration.** The app never reads or posts to a real repository, and no GitHub credentials are used. Semantic clusters send only simulated PR text to an embeddings provider when a backend key is configured; no repository, account or record leaves the server.
+- **GitHub integration is opt-in.** By default the app never reads or posts to a real repository. The optional GitHub App in §18 reads pull request metadata and posts an advisory check run only where it is installed; it is not enabled in the live deployment and no GitHub credentials are used there.
 - **Semantic clusters are not a classifier.** Cosine similarity groups similar wording, and ordinary project templates can group too. It does not establish authorship, intent, coordination or AI generation, and a cluster is never counted as a campaign by itself. With no key, the feature is disabled rather than replaced by lexical matching.
 - **No login, payments or persistent database.** These are intentionally out of scope. The app is deployed (see §15), but its state is in memory and resets on restart.
 - **Simplified governance.** Revocation and expiry are implemented as record semantics, but there is no full appeal, dispute-resolution or maintainer UI beyond the records demo.
@@ -589,6 +596,42 @@ An attacker who ages accounts, varies timing and content, builds plausible outsi
 
 **What is simulated:** every project, contributor, PR, account age, content sample, key, trust edge, record, campaign and ground-truth label. The simulation host is a convenience process, not an authority. Sponsor vouches are signed with simulated project keys.
 
-**What was not verified:** behavior against real repositories, real malicious actors, real key management, long-horizon sybil strategies, load at production scale, cross-browser rendering beyond Chromium, real-world detector precision/recall, the native install dialog on a physical desktop or phone, Windows/Linux packaging, and a signed/notarized installer. The public deployment on Render and Vercel was verified for structure, CORS and the write path, but not load-tested and not exercised from Safari or Firefox.
+**What was not verified:** behavior against real repositories, real malicious actors, real key management, long-horizon sybil strategies, load at production scale, cross-browser rendering beyond Chromium, real-world detector precision/recall, the native install dialog on a physical desktop or phone, Windows/Linux packaging, a signed/notarized installer, and the GitHub App against a real installation (its path is covered by a stub transport). The public deployment on Render and Vercel was verified for structure, CORS and the write path, but not load-tested and not exercised from Safari or Firefox.
 
 **What to say plainly in a demo:** this is a working, tested simulation of the trust model and its safeguards, with honest synthetic metrics — not a production reputation system.
+
+## 18. Optional GitHub App (scaffold)
+
+An opt-in GitHub App path reads pull request metadata from repositories where the app is installed and posts an **advisory** check run. It is disabled unless `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY` and `GITHUB_WEBHOOK_SECRET` are set on the backend; with them unset, every GitHub route refuses requests and the simulated behavior above is unchanged.
+
+### 18.1 What it does
+
+- `POST /api/github/webhook` verifies `X-Hub-Signature-256` over the raw bytes in constant time, remembers `X-GitHub-Delivery` for one hour to reject redeliveries, answers `202`, and processes one job at a time.
+- `GET /api/github/setup` is the App's Setup URL. It confirms the installation through the App API and renders a static, escaped confirmation page (or JSON when `Accept: application/json`), so a maintainer lands somewhere real after installing.
+- Handled `pull_request` actions are `opened`, `synchronize`, `reopened` and `ready_for_review`. `ping` is answered, `installation` and `installation_repositories` are acknowledged, everything else is ignored. Draft PRs receive a neutral “runs when ready for review” check.
+- The app signs a 9-minute RS256 JWT, exchanges it for a cached installation token, lists the installation's repositories, and reads their most recently updated pull requests within `GITHUB_LOOKBACK_DAYS` (default 30). Repositories become projects, authors become contributors, and PR title + body become the `contentSample` used by the existing detector. Account ages come from `GET /users/{login}` and are cached for 24 hours.
+- The behavioral signals that need no signed records run unchanged. The author's signals and any campaign containing them are rendered into the check run with links to the underlying PRs.
+- The conclusion is always `neutral` or `action_required`. TrustWeave never posts `failure`, never comments on the PR, and never blocks a merge.
+
+### 18.2 Setup
+
+1. Create a **private** GitHub App (Settings → Developer settings → GitHub Apps → New). Webhook URL `https://trustweave-api-live.onrender.com/api/github/webhook`, Setup URL `https://trustweave-api-live.onrender.com/api/github/setup`, a webhook secret, permissions `Metadata: read`, `Pull requests: read`, `Contents: read`, `Checks: write`, and the `pull_request` event.
+2. Set the backend variables in the Render dashboard (never in the repository). The PEM may keep `\n` escapes; they are restored at load:
+   ```dotenv
+   GITHUB_APP_ID=
+   GITHUB_APP_PRIVATE_KEY=
+   GITHUB_WEBHOOK_SECRET=
+   ```
+3. Install the app on one repository and open a pull request. The check appears under **Checks**.
+4. Optional tunables: `GITHUB_LOOKBACK_DAYS` (30), `GITHUB_MAX_REPOSITORIES` (10, max 25), `GITHUB_MAX_PRS_PER_REPOSITORY` (40, max 100), `GITHUB_MAX_USER_LOOKUPS` (25, max 100), and `GITHUB_API_BASE_URL` for GitHub Enterprise.
+
+### 18.3 Limits
+
+- **Not yet run against GitHub.** The tests cover the whole path through a stub transport: JWT verification, timing-safe signatures, PR mapping, detector output, check-run POST/PATCH, dedupe, drafts and ignored actions. A real installation is the next verification step.
+- **Advisory only.** `action_required` matters only where branch protection requires this check.
+- **Behavioral signals only.** There are no signed records in this path, so `vouch_ring` and `denouncement_burst` cannot fire. `new_accounts_in_sync` additionally needs six accounts across six repositories.
+- **Single-repository installations** cannot fire the cross-project signals (`near_duplicate_content`, `burst_timing`, `new_accounts_in_sync`); `high_volume_low_merge` still can.
+- **In-memory dedupe, token and account-age caches.** They reset with the process; webhook deliveries are not replayed.
+- **Free-tier cold starts.** Render sleeps, while GitHub times out a webhook delivery after 10 seconds. Move the service to a paid instance before installing the app on a real repository.
+- **API budget.** Roughly 5,000 requests per hour per installation. Each check costs one cached token request, one repository listing, one or more PR pages per repository, and up to `GITHUB_MAX_USER_LOOKUPS` cached user lookups.
+- **Privacy.** The app reads PR metadata and author account age. No content is sent to the embeddings provider, and nothing is written back to the repository. A public deployment needs a privacy notice before real installations.

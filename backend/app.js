@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { config } from './config/index.js';
 import apiRouter from './routes/api.js';
+import { githubRouter } from './routes/github.js';
 import { errorHandler, notFoundHandler } from './middleware/error-handler.js';
 
 export const app = express();
@@ -37,6 +38,9 @@ app.use(
     ],
   }),
 );
+// Webhooks verify an HMAC over the raw bytes, so this mount must stay ahead
+// of the JSON parser.
+app.use('/api/github', githubRouter);
 app.use(express.json({ limit: config.jsonBodyLimit }));
 
 app.use('/api', apiRouter);

@@ -12,7 +12,11 @@ const server = app.listen(config.port, () => {
     `Simulated state: seed=${state.seed}, projects=${state.size}, campaignSize=${state.campaignSize}, PRs=${state.counts.pullRequests}, activeRecords=${state.counts.records}`,
   );
   console.log(`CORS restricted to ${config.frontendOrigin}`);
-  console.log('No real repositories or GitHub credentials are used.');
+  console.log(
+    config.github.configured
+      ? 'GitHub App: enabled (reads PR metadata where installed, posts an advisory check run).'
+      : 'No real repositories or GitHub credentials are used.',
+  );
 
   if (config.verifyOnStart) {
     setImmediate(async () => {
