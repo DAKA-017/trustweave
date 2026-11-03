@@ -17,7 +17,7 @@ const VIEW_META = [
   },
   { id: "campaigns", label: "Campaigns", hint: "coordinated accounts" },
   { id: "newcomers", label: "Newcomer lane", hint: "neutral by default" },
-  { id: "records", label: "Records", hint: "signed log and tamper demo" },
+  { id: "records", label: "Records", hint: "signed log and tamper test" },
   { id: "simulator", label: "Simulator", hint: "rebuild the world" },
   {
     id: "explainer",

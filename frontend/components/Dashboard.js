@@ -153,7 +153,7 @@ export function Dashboard({ initialView = "network" }) {
           className="mb-4 rounded-lg border border-amber/40 bg-amber/5 px-4 py-3"
         >
           <p className="text-xs font-medium text-amber">
-            The live demo server is not responding yet. Saved demo data is shown
+            The live server is not responding yet. Saved data is shown
             below while the page keeps retrying.
           </p>
           <p className="mt-1 text-[11px] text-muted">{healthError.message}</p>

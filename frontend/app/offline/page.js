@@ -27,7 +27,7 @@ export default function OfflinePage() {
         Try again
       </Link>
       <p className="font-mono text-[10px] text-muted/80">
-        Demo only · no real repositories are contacted.
+        Simulated data · no real repositories are contacted.
       </p>
     </main>
   );

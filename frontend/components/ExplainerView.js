@@ -82,7 +82,7 @@ export function ExplainerView() {
             className="inline-flex min-h-9 items-center gap-2 rounded-md text-xs font-medium text-muted hover:text-ink"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            Back to the demo
+            Back to the app
           </Link>
           <span className="inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.14em] text-amber">
             <FlaskConical className="h-3.5 w-3.5" aria-hidden="true" />

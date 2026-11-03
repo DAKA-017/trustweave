@@ -36,7 +36,7 @@ export const metadata = {
 };
 
 const SITE_LINKS = [
-  ["Demo", "/network"],
+  ["Dashboard", "/network"],
   ["Campaigns", "/campaigns"],
   ["Records", "/records"],
   ["Simulator", "/simulator"],
@@ -124,7 +124,7 @@ const examples = [
     whatWouldChange: disputedAssessment.whatWouldChangeThis,
     link: {
       href: `/contributor?as=${disputed.evaluatingProject.id}&id=${disputed.contributor.id}`,
-      label: "Open this contributor in the demo",
+      label: "Open this contributor in the app",
     },
   },
   {
@@ -309,7 +309,7 @@ export default function HomePage() {
             href="/network"
             className="cta-sheen group inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-md bg-teal px-3 py-1.5 text-xs font-semibold text-charcoal transition-colors hover:bg-teal/90"
           >
-            Open demo
+            Open app
             <ArrowRight
               className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5"
               aria-hidden="true"
@@ -377,7 +377,7 @@ export default function HomePage() {
                     href="/network"
                     className="cta-sheen group inline-flex min-h-11 items-center gap-2 rounded-md bg-teal px-4 py-2.5 text-sm font-semibold text-charcoal transition-colors hover:bg-teal/90"
                   >
-                    Open the interactive demo
+                    Open the interactive app
                     <ArrowRight
                       className="h-4 w-4 transition-transform group-hover:translate-x-1"
                       aria-hidden="true"
@@ -483,7 +483,7 @@ export default function HomePage() {
             <Reveal>
               <SectionHeading
                 eyebrow="explore"
-                title="Four ways into the demo"
+                title="Four ways into the app"
                 body="Everything below runs in the browser against the simulated API. Nothing touches a real repository."
               />
             </Reveal>
@@ -533,7 +533,7 @@ export default function HomePage() {
               <SectionHeading
                 eyebrow="the model"
                 title="Sign, weigh, then judge"
-                body="The trust model is deliberately small enough to inspect. Each step leaves evidence you can open in the demo."
+                body="The trust model is deliberately small enough to inspect. Each step leaves evidence you can open in the app."
               />
             </Reveal>
             <ol className="mt-5 grid gap-3 md:grid-cols-3">
@@ -667,7 +667,7 @@ export default function HomePage() {
                 />
                 <div className="min-w-0">
                   <h2 className="text-sm font-semibold text-ink">
-                    What this demo is not
+                    What this is not
                   </h2>
                   <p className="mt-1 text-xs leading-relaxed text-muted">
                     Every project, contribution, account age and label is
@@ -705,7 +705,7 @@ export default function HomePage() {
                       href="/network"
                       className="cta-sheen group inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-teal px-4 py-2.5 text-sm font-semibold text-charcoal transition-colors hover:bg-teal/90"
                     >
-                      Open the demo
+                      Open the app
                       <ArrowRight
                         className="h-4 w-4 transition-transform group-hover:translate-x-1"
                         aria-hidden="true"
@@ -727,8 +727,8 @@ export default function HomePage() {
             <div className="min-w-0">
               <p className="text-sm font-semibold tracking-tight">TrustWeave</p>
               <p className="text-[11px] leading-relaxed text-muted">
-                A simulated decentralized trust network. Demo only — no real
-                repositories are contacted.
+                A simulated decentralized trust network. Simulated data — no
+                real repositories are contacted.
               </p>
             </div>
           </div>
@@ -737,7 +737,7 @@ export default function HomePage() {
             className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted"
           >
             <Link href="/network" className="hover:text-ink">
-              Demo
+              Dashboard
             </Link>
             <Link href="/campaigns" className="hover:text-ink">
               Campaigns

@@ -73,9 +73,9 @@ export function LandingStatus({ initialHealth }) {
 
   const counts = health?.counts ?? {};
   const label = {
-    snapshot: "checking the demo API…",
-    live: "live demo API connected",
-    offline: "demo API unreachable — showing the seed-42 snapshot",
+    snapshot: "checking the app API…",
+    live: "live app API connected",
+    offline: "app API unreachable — showing the seed-42 snapshot",
   }[phase];
   const dot = {
     snapshot: "bg-amber",
@@ -85,7 +85,7 @@ export function LandingStatus({ initialHealth }) {
 
   return (
     <section
-      aria-label="Demo status"
+      aria-label="App status"
       data-testid="landing-status"
       data-state={phase}
       className="relative w-full overflow-hidden rounded-lg border border-line bg-panel/80 p-3 sm:p-4"
@@ -134,7 +134,7 @@ export function LandingStatus({ initialHealth }) {
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-muted">
           {phase === "live"
-            ? "Read straight from the running simulator. This page only reads; nothing is written until you open the demo."
+            ? "Read straight from the running simulator. This page only reads; nothing is written until you open the app."
             : "These counts come from the build-time snapshot of the seed-42 world."}
         </p>
         {phase === "offline" && (

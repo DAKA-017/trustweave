@@ -347,7 +347,7 @@ test("demonstrates signature and hash-chain rejection", async ({ page }) => {
   await expect(page.getByText("denounce", { exact: true }).first()).toBeVisible();
 
   await page.getByRole("button", { name: "Tamper signature" }).click();
-  await expect(page.getByText("Tamper demo:", { exact: false })).toBeVisible();
+  await expect(page.getByText("Tamper test:", { exact: false })).toBeVisible();
   await expect(page.getByText("log rejected")).toBeVisible();
   await expect(page.getByText("signature invalid").first()).toBeVisible();
   await expect(page.getByText(/^rejected:/).first()).toBeVisible();
@@ -580,7 +580,7 @@ test("opens every view from a direct URL and keeps deep-linked state", async ({
   await expect(page.locator("#records-project")).toHaveValue("p03");
   await expect(page.getByText("log rejected")).toBeVisible();
   await expect(
-    page.getByText("Tamper demo:", { exact: false }),
+    page.getByText("Tamper test:", { exact: false }),
   ).toBeVisible();
   await expect(page.getByText("vouch", { exact: true }).first()).toBeVisible();
 });

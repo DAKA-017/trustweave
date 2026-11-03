@@ -564,7 +564,7 @@ export function NetworkView({
       <Panel
         className="mt-4"
         title="Words made simple"
-        description="Short definitions for the labels you will see across this demo."
+        description="Short definitions for the labels you will see across this app."
       >
         <dl className="grid gap-x-8 gap-y-4 sm:grid-cols-2 xl:grid-cols-3">
           {GLOSSARY.map((item) => (

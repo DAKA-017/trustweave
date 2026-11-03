@@ -29,7 +29,7 @@ function RecordForm({ projects, defaultProjectId, onSigned }) {
   const [issuerProjectId, setIssuerProjectId] = useState("");
   const [subjectContributorId, setSubjectContributorId] = useState("c_new_good");
   const [reasonCode, setReasonCode] = useState(DEFAULT_REASONS.vouch);
-  const [evidenceRef, setEvidenceRef] = useState("manually signed demo record");
+  const [evidenceRef, setEvidenceRef] = useState("manually signed sample record");
   const [subjectRecordId, setSubjectRecordId] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
@@ -82,7 +82,7 @@ function RecordForm({ projects, defaultProjectId, onSigned }) {
   return (
     <Panel
       title="Add a signed note"
-      description="A record is a signed note a project adds to its list: support, a concern, or a correction. This only changes the demo's in-memory data; rebuild from the Simulator to reset."
+      description="A record is a signed note a project adds to its list: support, a concern, or a correction. This only changes the app's in-memory data; rebuild from the Simulator to reset."
     >
       <form onSubmit={submit} className="space-y-3">
         <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -406,7 +406,7 @@ export function RecordsView({
       {tamper !== "none" && (
         <div className="mb-4 rounded-lg border border-amber/40 bg-amber/5 px-4 py-3">
           <p className="text-xs font-medium text-amber">
-            Tamper demo: verification is running on a modified copy of the log.
+            Tamper test: verification is running on a modified copy of the log.
           </p>
           <p className="mt-1 text-[11px] leading-relaxed text-muted">
             The stored log is unchanged. Rejected entries below show which check
@@ -425,7 +425,7 @@ export function RecordsView({
           description={
             tamper === "none"
               ? "Each note is checked against the one before it and the project's signature."
-              : "Demonstration only. Stored records were not modified."
+              : "Simulation only. Stored records were not modified."
           }
           actions={
             <span

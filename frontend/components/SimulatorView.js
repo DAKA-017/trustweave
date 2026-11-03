@@ -94,7 +94,7 @@ export function SimulatorView({ version, meta, onSimulated }) {
     <div className="min-w-0">
       <PageHeader
         title="Simulator"
-        description="Rebuild a repeatable demo world from a number (the seed), then compare the app's guesses with the simulator's known answers. Nothing is fetched from or written to a real repository."
+        description="Rebuild a repeatable world from a number (the seed), then compare the app's guesses with the simulator's known answers. Nothing is fetched from or written to a real repository."
       >
         {meta && (
           <span className="rounded border border-line bg-panel px-2 py-1 font-mono text-[10px] text-muted">
@@ -107,7 +107,7 @@ export function SimulatorView({ version, meta, onSimulated }) {
       <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
         <Panel
           title="Run configuration"
-          description="Rebuilding starts a fresh demo world from the seed and discards the current records."
+          description="Rebuilding starts a fresh world from the seed and discards the current records."
         >
           <form onSubmit={rerun} className="space-y-4">
             <div>

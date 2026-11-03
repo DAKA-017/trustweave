@@ -62,7 +62,7 @@ export function renderSetupPage({
     low merge rates — never text origin or authorship.
   </p>
   <p>The check is advisory only. It never blocks a merge.</p>
-  <a href="${escapeHtml(dashboardUrl)}">Open the TrustWeave demo</a>
+  <a href="${escapeHtml(dashboardUrl)}">Open the TrustWeave dashboard</a>
   <footer>Installation <code>${escapeHtml(installationId)}</code></footer>
 </main>
 </body>

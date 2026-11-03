@@ -33,7 +33,7 @@ function Meta({ meta, hydrated }) {
         role="status"
         className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted"
       >
-        connecting to the demo…
+        connecting to the app…
       </span>
     );
   }
@@ -153,12 +153,12 @@ export function AppShell({
 
         <div className="hidden border-t border-line px-4 py-4 md:block">
           <p className="text-[11px] leading-relaxed text-muted">
-            Every project runs inside this one demo. There is no single score:
+            Every project runs inside this one network. There is no single score:
             each project decides whom to trust and judges people from what it
             can verify.
           </p>
           <p className="mt-3 text-[10px] leading-relaxed text-muted/80">
-            Demo only · no real repositories are contacted.
+            Simulated data · no real repositories are contacted.
           </p>
         </div>
       </aside>

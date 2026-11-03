@@ -7,7 +7,7 @@ test.beforeEach(({}, testInfo) => {
   );
 });
 
-test("presents the public page and a working path into the demo", async ({
+test("presents the public page and a working path into the app", async ({
   page,
 }) => {
   const pageErrors = [];
@@ -26,12 +26,12 @@ test("presents the public page and a working path into the demo", async ({
   await expect(status).toHaveAttribute("data-state", "live", {
     timeout: 20_000,
   });
-  await expect(status).toContainText("live demo API connected");
+  await expect(status).toContainText("live app API connected");
   await expect(status).toContainText("417");
   await expect(status).toContainText("126");
 
   await page
-    .getByRole("link", { name: "Open the interactive demo", exact: true })
+    .getByRole("link", { name: "Open the interactive app", exact: true })
     .click();
   await expect(page).toHaveURL(/\/network$/);
   await expect(

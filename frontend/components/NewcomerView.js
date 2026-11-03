@@ -123,7 +123,7 @@ export function NewcomerView({ version, onSigned }) {
       ) : (
         <Panel
           title="Neutral newcomers"
-          description="Each row shows how p10 sees the person, what they have done so far, starter tasks, and a demo vouch action."
+          description="Each row shows how p10 sees the person, what they have done so far, starter tasks, and a sample vouch action."
           contentClassName="p-0"
         >
           <ul className="divide-y divide-line">
